@@ -23,13 +23,36 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
   - `GET /wp-json/wp-custom-gpt/v1/chats/{chatId}/messages`
   - `POST /wp-json/wp-custom-gpt/v1/chats/{chatId}/messages`
 - Shortcode shell: `[wp_custom_gpt]`
+- Separate settings shortcode: `[wp_custom_gpt_settings]`
 
 ## Install in WordPress
 
 1. Copy the `wp_custom_gpt` folder into your WordPress `wp-content/plugins/` directory.
 2. Activate **WP Custom GPT** in WordPress admin.
 3. Create a page and place the shortcode `[wp_custom_gpt]`.
-4. Open the page while logged in.
+4. Create a second page and place the shortcode `[wp_custom_gpt_settings]` for parameter management.
+5. Open both pages while logged in.
+
+## Settings management interface
+
+Use shortcode `[wp_custom_gpt_settings]` to manage:
+
+- API key
+- Prompt ID
+- Vector store IDs
+- User email
+
+Storage location is WordPress database (`wp_options`) using these option keys:
+
+- `wpcgpt_api_key`
+- `wpcgpt_prompt_id`
+- `wpcgpt_vector_store_ids`
+- `wpcgpt_user_email`
+
+Permission model:
+
+- Read/write settings requires `manage_options` capability.
+- Settings endpoint is not exposed to non-admin users.
 
 ## Build a loadable WordPress archive
 

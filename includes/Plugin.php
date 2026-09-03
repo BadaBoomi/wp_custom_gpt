@@ -13,6 +13,7 @@ use WpCustomGpt\Services\SettingsService;
 class Plugin
 {
     private const SCRIPT_HANDLE = 'wpcgpt-frontend';
+    private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
 
     public static function activate(): void
     {
@@ -24,6 +25,7 @@ class Plugin
         add_action('rest_api_init', array($this, 'registerRestRoutes'));
         add_action('wp_enqueue_scripts', array($this, 'registerAssets'));
         add_shortcode('wp_custom_gpt', array($this, 'renderShortcode'));
+        add_shortcode('wp_custom_gpt_settings', array($this, 'renderSettingsShortcode'));
     }
 
     public function registerRestRoutes(): void
@@ -62,7 +64,20 @@ class Plugin
             true
         );
 
+        wp_register_script(
+            self::SETTINGS_SCRIPT_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/js/settings.js',
+            array(),
+            WPCGPT_PLUGIN_VERSION,
+            true
+        );
+
         wp_localize_script(self::SCRIPT_HANDLE, 'WPCGPT_CONFIG', array(
+            'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ));
+
+        wp_localize_script(self::SETTINGS_SCRIPT_HANDLE, 'WPCGPT_SETTINGS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
         ));
@@ -94,6 +109,35 @@ class Plugin
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-chat-list"></ul>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    public function renderSettingsShortcode(): string
+    {
+        if (!current_user_can('manage_options')) {
+            return '<p>You do not have permission to manage WP Custom GPT settings.</p>';
+        }
+
+        wp_enqueue_script(self::SETTINGS_SCRIPT_HANDLE);
+
+        $html = '';
+        $html .= '<div id="wpcgpt-settings-app" class="wpcgpt-settings-app">';
+        $html .= '  <h2>WP Custom GPT Settings</h2>';
+        $html .= '  <form id="wpcgpt-settings-form">';
+        $html .= '    <p><label for="wpcgpt-api-key">API Key (leave empty to keep current)</label><br />';
+        $html .= '    <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
+        $html .= '    <p id="wpcgpt-api-key-current"></p>';
+        $html .= '    <p><label for="wpcgpt-prompt-id">Prompt ID</label><br />';
+        $html .= '    <input id="wpcgpt-prompt-id" type="text" maxlength="191" style="width:100%;max-width:640px;" /></p>';
+        $html .= '    <p><label for="wpcgpt-vector-store-ids">Vector Store IDs (comma separated)</label><br />';
+        $html .= '    <input id="wpcgpt-vector-store-ids" type="text" style="width:100%;max-width:640px;" /></p>';
+        $html .= '    <p><label for="wpcgpt-user-email">User Email</label><br />';
+        $html .= '    <input id="wpcgpt-user-email" type="email" style="width:100%;max-width:640px;" /></p>';
+        $html .= '    <p><button type="submit">Save Settings</button></p>';
+        $html .= '  </form>';
+        $html .= '  <p id="wpcgpt-settings-status" aria-live="polite"></p>';
         $html .= '</div>';
 
         return $html;
