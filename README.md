@@ -31,6 +31,32 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
 3. Create a page and place the shortcode `[wp_custom_gpt]`.
 4. Open the page while logged in.
 
+## Build a loadable WordPress archive
+
+Use the build script to generate a ZIP that can be uploaded in WordPress via Plugins > Add New > Upload Plugin.
+
+1. Run the script from the plugin root:
+
+```bash
+bash scripts/build-plugin-zip.sh
+```
+
+2. The archive is created in `dist/` with the naming pattern:
+
+```text
+dist/wp-custom-gpt-<version>.zip
+```
+
+3. In WordPress admin, upload that ZIP file:
+  Plugins > Add New > Upload Plugin
+
+### Notes
+
+- The script reads the version from `wp-custom-gpt.php`.
+- It excludes local build artifacts and `.git` metadata.
+- Required tool in your shell: `rsync`.
+- Archive creation uses `zip` when available, otherwise falls back to `powershell.exe` with `Compress-Archive`.
+
 ## Next implementation slices
 
 1. OpenAI service port and send-message orchestration.
