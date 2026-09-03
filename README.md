@@ -77,6 +77,7 @@ Use shortcode `[wp_custom_gpt_settings]` to manage:
 - Prompt ID
 - Vector store IDs
 - User email
+- Starters (Markdown table)
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
@@ -90,6 +91,11 @@ Permission model:
 - Read/write settings requires `manage_options` capability.
 - Settings endpoint is not exposed to non-admin users.
 
+### Reload from GET_CONFIGURATION
+
+On the settings page, use `Reload Configuration (GET_CONFIGURATION)` to fetch starter configuration from OpenAI and persist it in WordPress DB.
+The resulting rows are saved as starters and used to build initial action buttons in the chat view.
+
 ## Quick chat test with OpenAI
 
 1. Open a page with shortcode `[wp_custom_gpt_settings]` as admin and save at least:
@@ -102,6 +108,22 @@ Permission model:
 5. You will land on the single chat page (`[wp_custom_gpt_chat ...]`).
 6. Send a message using the message box and `Send to OpenAI`.
 7. The plugin persists both user and assistant messages in WordPress DB.
+
+### Inline response buttons above chat input
+
+The chat page supports assistant inline button tokens like:
+
+```text
+[[buttons:[Label 1|Message text 1],[Label 2|Message text 2]]]
+```
+
+Behavior:
+
+- Tokens are removed from visible assistant text output.
+- Buttons are rendered above the chat input field.
+- Clicking a button fills the input with the mapped message text.
+
+If no inline response buttons are present in the latest assistant message, the chat page falls back to initial buttons built from saved configuration starters.
 
 ## Build a loadable WordPress archive
 

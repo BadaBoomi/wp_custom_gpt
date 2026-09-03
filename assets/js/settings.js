@@ -10,6 +10,8 @@
     var promptIdInput = document.getElementById('wpcgpt-prompt-id');
     var vectorStoreIdsInput = document.getElementById('wpcgpt-vector-store-ids');
     var userEmailInput = document.getElementById('wpcgpt-user-email');
+    var startersInput = document.getElementById('wpcgpt-starters');
+    var reloadConfigurationBtn = document.getElementById('wpcgpt-reload-configuration');
     var apiKeyCurrentEl = document.getElementById('wpcgpt-api-key-current');
 
     function setStatus(message, isError) {
@@ -44,6 +46,7 @@
         promptIdInput.value = data.prompt_id || '';
         vectorStoreIdsInput.value = data.vector_store_ids || '';
         userEmailInput.value = data.user_email || '';
+        startersInput.value = data.starters || '';
 
         if (data.has_api_key) {
             apiKeyCurrentEl.textContent = 'Current API key: ' + (data.api_key_masked || '(hidden)');
@@ -71,6 +74,7 @@
             prompt_id: promptIdInput.value.trim(),
             vector_store_ids: vectorStoreIdsInput.value.trim(),
             user_email: userEmailInput.value.trim(),
+            starters: startersInput.value,
         };
 
         var apiKeyValue = apiKeyInput.value.trim();
@@ -90,6 +94,20 @@
                 setStatus(error.message, true);
             });
     });
+
+    if (reloadConfigurationBtn) {
+        reloadConfigurationBtn.addEventListener('click', function () {
+            setStatus('Reloading configuration from GET_CONFIGURATION...', false);
+            request('POST', '/settings/reload-configuration')
+                .then(function (data) {
+                    fillForm(data);
+                    setStatus('Configuration reloaded and saved.', false);
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                });
+        });
+    }
 
     loadSettings();
 })();

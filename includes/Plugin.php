@@ -41,7 +41,7 @@ class Plugin
         $roomRepository = new RoomRepository();
         $chatRepository = new ChatRepository();
 
-        $settingsController = new SettingsController($settingsService);
+        $settingsController = new SettingsController($settingsService, $openAiService);
         $roomsController = new RoomsController($roomRepository);
         $chatsController = new ChatsController($chatRepository, $openAiService);
 
@@ -205,16 +205,25 @@ class Plugin
         ), $atts, 'wp_custom_gpt_chat');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
+        $settingsService = new SettingsService();
+        $configurationEntries = $settingsService->getConfigurationEntries();
+        $configurationEntriesJson = wp_json_encode($configurationEntries);
+        if ($configurationEntriesJson === false) {
+            $configurationEntriesJson = '[]';
+        }
 
         wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chat</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-messages">Refresh Messages</button>';
         $html .= '  </div>';
         $html .= '  <div id="wpcgpt-message-output" style="width:100%;max-width:760px;height:360px;overflow-y:auto;border:1px solid #d0d7de;border-radius:8px;padding:12px;background:#ffffff;"></div>';
+        $html .= '  <div class="wpcgpt-create">';
+        $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:760px;"></div>';
+        $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Type your message" style="width:100%;max-width:720px;"></textarea>';
         $html .= '  </div>';
@@ -249,7 +258,10 @@ class Plugin
         $html .= '    <input id="wpcgpt-vector-store-ids" type="text" style="width:100%;max-width:640px;" /></p>';
         $html .= '    <p><label for="wpcgpt-user-email">User Email</label><br />';
         $html .= '    <input id="wpcgpt-user-email" type="email" style="width:100%;max-width:640px;" /></p>';
+        $html .= '    <p><label for="wpcgpt-starters">Starters (Markdown table)</label><br />';
+        $html .= '    <textarea id="wpcgpt-starters" rows="8" style="width:100%;max-width:760px;"></textarea></p>';
         $html .= '    <p><button type="submit">Save Settings</button></p>';
+        $html .= '    <p><button type="button" id="wpcgpt-reload-configuration">Reload Configuration (GET_CONFIGURATION)</button></p>';
         $html .= '  </form>';
         $html .= '  <p id="wpcgpt-settings-status" aria-live="polite"></p>';
         $html .= '</div>';

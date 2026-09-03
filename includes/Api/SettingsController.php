@@ -4,6 +4,7 @@ namespace WpCustomGpt\Api;
 
 use WP_Error;
 use WP_REST_Request;
+use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
 
 class SettingsController
@@ -11,10 +12,12 @@ class SettingsController
     private const NAMESPACE = 'wp-custom-gpt/v1';
 
     private SettingsService $settingsService;
+    private OpenAiService $openAiService;
 
-    public function __construct(SettingsService $settingsService)
+    public function __construct(SettingsService $settingsService, OpenAiService $openAiService)
     {
         $this->settingsService = $settingsService;
+        $this->openAiService = $openAiService;
     }
 
     public function registerRoutes(): void
@@ -28,6 +31,14 @@ class SettingsController
             array(
                 'methods' => 'POST',
                 'callback' => array($this, 'saveSettings'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/settings/reload-configuration', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'reloadConfiguration'),
                 'permission_callback' => array($this, 'canManageSettings'),
             ),
         ));
@@ -46,6 +57,24 @@ class SettingsController
         }
 
         return $this->settingsService->saveSettings($payload);
+    }
+
+    public function reloadConfiguration()
+    {
+        $result = $this->openAiService->readConfiguration();
+        if (is_wp_error($result)) {
+            return $result;
+        }
+
+        $assistantText = (string) ($result['assistant_text'] ?? '');
+        $rows = $this->settingsService->parseConfigurationPrompts($assistantText);
+        if (empty($rows)) {
+            return new WP_Error('configuration_parse_failed', 'No configuration rows found in assistant response.', array('status' => 422));
+        }
+
+        $this->settingsService->saveConfigurationRows($rows);
+
+        return $this->settingsService->getSettingsForAdmin();
     }
 
     public function canManageSettings(): bool
