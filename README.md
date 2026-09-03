@@ -28,6 +28,7 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
 - Single chat shortcode: `[wp_custom_gpt_chat]`
 - Legacy alias: `[wp_custom_gpt]` (same as room management)
 - Separate settings shortcode: `[wp_custom_gpt_settings]`
+- Admin menu page: `Custom GPT Flows` (manage_options only)
 
 ## Install in WordPress
 
@@ -91,6 +92,60 @@ Permission model:
 - Read/write settings requires `manage_options` capability.
 - Settings endpoint is not exposed to non-admin users.
 
+## Flow management (admin)
+
+The plugin now includes a central admin-only page:
+
+- WordPress admin menu: `Custom GPT Flows`
+- Capability required: `manage_options`
+
+It stores custom flow handlers in DB table `wpcgpt_flow_code` and executes them through the flow runtime when an active flow session is running.
+
+### Flow REST endpoints (admin only)
+
+- `GET /wp-json/wp-custom-gpt/v1/flows`
+- `GET /wp-json/wp-custom-gpt/v1/flows/{flowType}`
+- `POST /wp-json/wp-custom-gpt/v1/flows/{flowType}`
+- `DELETE /wp-json/wp-custom-gpt/v1/flows/{flowType}`
+- `POST /wp-json/wp-custom-gpt/v1/flows/validate`
+
+### Flow code contract
+
+Stored code must be a PHP function body (without `<?php`), compiled into:
+
+```php
+static function(array $context): array { /* your code */ }
+```
+
+Expected context fields:
+
+- `mode`: `initial` or `turn`
+- `chat_id`: current chat id
+- `user_id`: current user id
+- `user_input`: current user text (`turn` mode)
+- `session`: `{ flow_type, state }`
+
+Expected return values:
+
+- `initial_prompt` (string) for `initial` mode and/or `assistant_reply` (string)
+- `status`: `running` | `completed` | `aborted`
+- `state`: array to persist in `wpcgpt_flow_sessions.state_json`
+
+### Triggering a flow
+
+In assistant output, add a directive:
+
+```text
+[[start_rule_flow:collect_contact]]
+```
+
+Behavior:
+
+- Directive is removed from visible assistant message.
+- Flow session is started for that chat.
+- Runtime requests `initial` mode and stores the returned initial prompt as assistant message.
+- Following user turns use the active flow runtime instead of OpenAI until status is `completed` or `aborted`.
+
 ### Reload from GET_CONFIGURATION
 
 On the settings page, use `Reload Configuration (GET_CONFIGURATION)` to fetch starter configuration from OpenAI and persist it in WordPress DB.
@@ -124,6 +179,11 @@ Behavior:
 - Clicking a button fills the input with the mapped message text.
 
 If no inline response buttons are present in the latest assistant message, the chat page falls back to initial buttons built from saved configuration starters.
+
+### Model selection behavior
+
+When a Prompt-ID is set (global or via selected configuration button), the plugin sends the request with `prompt.id` and does not force a model.
+This avoids conflicts such as `reasoning.mode is not supported with this model` caused by overriding prompt-defined behavior with an incompatible hardcoded model.
 
 ## Build a loadable WordPress archive
 

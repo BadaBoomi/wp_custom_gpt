@@ -4,7 +4,7 @@ namespace WpCustomGpt\Database;
 
 class MigrationRunner
 {
-    private const SCHEMA_VERSION = '1';
+    private const SCHEMA_VERSION = '2';
 
     public static function migrate(): void
     {
@@ -18,6 +18,7 @@ class MigrationRunner
         $chatsTable = $wpdb->prefix . 'wpcgpt_chats';
         $messagesTable = $wpdb->prefix . 'wpcgpt_messages';
         $flowSessionsTable = $wpdb->prefix . 'wpcgpt_flow_sessions';
+        $flowCodeTable = $wpdb->prefix . 'wpcgpt_flow_code';
 
         $sqlRooms = "CREATE TABLE {$roomsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -75,10 +76,27 @@ class MigrationRunner
             KEY idx_updated_at (updated_at)
         ) {$charsetCollate};";
 
+        $sqlFlowCode = "CREATE TABLE {$flowCodeTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            flow_type VARCHAR(100) NOT NULL,
+            code_php LONGTEXT NOT NULL,
+            version INT UNSIGNED NOT NULL,
+            checksum CHAR(64) NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            updated_by BIGINT UNSIGNED NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_flow_type (flow_type),
+            KEY idx_is_active (is_active),
+            KEY idx_updated_at (updated_at)
+        ) {$charsetCollate};";
+
         dbDelta($sqlRooms);
         dbDelta($sqlChats);
         dbDelta($sqlMessages);
         dbDelta($sqlFlowSessions);
+        dbDelta($sqlFlowCode);
 
         update_option('wpcgpt_schema_version', self::SCHEMA_VERSION, false);
     }

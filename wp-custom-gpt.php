@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Custom GPT
  * Description: Brings core features from pwa_custom_gpt into WordPress.
- * Version: 0.4.1
+ * Version: 0.4.2
  * Author: Heiko
  */
 
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('WPCGPT_PLUGIN_VERSION')) {
-    define('WPCGPT_PLUGIN_VERSION', '0.4.1');
+    define('WPCGPT_PLUGIN_VERSION', '0.4.2');
 }
 
 if (!defined('WPCGPT_PLUGIN_FILE')) {
@@ -29,11 +29,15 @@ if (!defined('WPCGPT_PLUGIN_URL')) {
 require_once WPCGPT_PLUGIN_DIR . 'includes/Database/MigrationRunner.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/SettingsService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/OpenAiService.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Services/FlowRuntimeService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/RoomRepository.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/ChatRepository.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/FlowCodeRepository.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/FlowSessionRepository.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Api/SettingsController.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Api/RoomsController.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Api/ChatsController.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Api/FlowCodeController.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Plugin.php';
 
 register_activation_hook(WPCGPT_PLUGIN_FILE, array('WpCustomGpt\\Plugin', 'activate'));

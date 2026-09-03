@@ -25,7 +25,6 @@ class OpenAiService
         }
 
         $payload = array(
-            'model' => 'gpt-4.1-mini',
             'input' => $this->mapMessagesToInput($messages),
         );
 
@@ -34,6 +33,9 @@ class OpenAiService
             : (string) ($runtime['prompt_id'] ?? '');
         if ($promptId !== '') {
             $payload['prompt'] = array('id' => $promptId);
+        } else {
+            // Fallback model when no prompt is configured.
+            $payload['model'] = 'gpt-4.1-mini';
         }
 
         $vectorStoreIds = $this->parseVectorStoreIds((string) ($runtime['vector_store_ids'] ?? ''));

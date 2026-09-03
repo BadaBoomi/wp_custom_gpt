@@ -3,11 +3,15 @@
 namespace WpCustomGpt;
 
 use WpCustomGpt\Api\ChatsController;
+use WpCustomGpt\Api\FlowCodeController;
 use WpCustomGpt\Api\RoomsController;
 use WpCustomGpt\Api\SettingsController;
 use WpCustomGpt\Database\MigrationRunner;
 use WpCustomGpt\Repositories\ChatRepository;
+use WpCustomGpt\Repositories\FlowCodeRepository;
+use WpCustomGpt\Repositories\FlowSessionRepository;
 use WpCustomGpt\Repositories\RoomRepository;
+use WpCustomGpt\Services\FlowRuntimeService;
 use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
 
@@ -17,6 +21,7 @@ class Plugin
     private const CHATS_SCRIPT_HANDLE = 'wpcgpt-chats-frontend';
     private const CHAT_SCRIPT_HANDLE = 'wpcgpt-chat-frontend';
     private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
+    private const FLOWS_ADMIN_SCRIPT_HANDLE = 'wpcgpt-flows-admin';
 
     public static function activate(): void
     {
@@ -27,6 +32,8 @@ class Plugin
     {
         add_action('rest_api_init', array($this, 'registerRestRoutes'));
         add_action('wp_enqueue_scripts', array($this, 'registerAssets'));
+        add_action('admin_menu', array($this, 'registerAdminPages'));
+        add_action('admin_enqueue_scripts', array($this, 'registerAdminAssets'));
         add_shortcode('wp_custom_gpt', array($this, 'renderRoomsShortcode'));
         add_shortcode('wp_custom_gpt_rooms', array($this, 'renderRoomsShortcode'));
         add_shortcode('wp_custom_gpt_chats', array($this, 'renderChatsShortcode'));
@@ -40,14 +47,19 @@ class Plugin
         $openAiService = new OpenAiService($settingsService);
         $roomRepository = new RoomRepository();
         $chatRepository = new ChatRepository();
+        $flowCodeRepository = new FlowCodeRepository();
+        $flowSessionRepository = new FlowSessionRepository();
+        $flowRuntimeService = new FlowRuntimeService($flowCodeRepository);
 
         $settingsController = new SettingsController($settingsService, $openAiService);
         $roomsController = new RoomsController($roomRepository);
-        $chatsController = new ChatsController($chatRepository, $openAiService);
+        $chatsController = new ChatsController($chatRepository, $openAiService, $flowSessionRepository, $flowRuntimeService);
+        $flowCodeController = new FlowCodeController($flowRuntimeService);
 
         $settingsController->registerRoutes();
         $roomsController->registerRoutes();
         $chatsController->registerRoutes();
+        $flowCodeController->registerRoutes();
 
         register_rest_route('wp-custom-gpt/v1', '/health', array(
             'methods' => 'GET',
@@ -113,6 +125,89 @@ class Plugin
         wp_localize_script(self::SETTINGS_SCRIPT_HANDLE, 'WPCGPT_SETTINGS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
+        ));
+    }
+
+    public function registerAdminPages(): void
+    {
+        add_menu_page(
+            'WP Custom GPT Flows',
+            'Custom GPT Flows',
+            'manage_options',
+            'wpcgpt-flows',
+            array($this, 'renderFlowsAdminPage'),
+            'dashicons-editor-code',
+            65
+        );
+    }
+
+    public function registerAdminAssets(string $hookSuffix): void
+    {
+        if ($hookSuffix !== 'toplevel_page_wpcgpt-flows') {
+            return;
+        }
+
+        wp_register_script(
+            self::FLOWS_ADMIN_SCRIPT_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/js/flow-admin.js',
+            array(),
+            WPCGPT_PLUGIN_VERSION,
+            true
+        );
+
+        wp_localize_script(self::FLOWS_ADMIN_SCRIPT_HANDLE, 'WPCGPT_FLOW_ADMIN_CONFIG', array(
+            'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+            'nonce' => wp_create_nonce('wp_rest'),
+            'defaultFlowCode' => $this->getDefaultFlowTemplate(),
+        ));
+
+        wp_enqueue_script(self::FLOWS_ADMIN_SCRIPT_HANDLE);
+    }
+
+    public function renderFlowsAdminPage(): void
+    {
+        if (!current_user_can('manage_options')) {
+            echo '<div class="wrap"><p>You do not have permission to manage flows.</p></div>';
+            return;
+        }
+
+        echo '<div class="wrap">';
+        echo '  <h1>WP Custom GPT Flow Management</h1>';
+        echo '  <p>Manage server-side flow handlers by flow type. Code is stored in the WordPress database and executed for running flow sessions.</p>';
+        echo '  <div id="wpcgpt-flow-admin-app" style="max-width:1100px;">';
+        echo '    <p><label for="wpcgpt-flow-type"><strong>Flow Type</strong></label><br />';
+        echo '    <input id="wpcgpt-flow-type" type="text" placeholder="collect_contact" style="width:100%;max-width:360px;" /></p>';
+        echo '    <p><button type="button" id="wpcgpt-flow-load" class="button">Load</button> <button type="button" id="wpcgpt-flow-list" class="button">List</button> <button type="button" id="wpcgpt-flow-template" class="button">Insert Template</button></p>';
+        echo '    <p><label for="wpcgpt-flow-code"><strong>Flow PHP Code (function body, no &lt;?php tag)</strong></label><br />';
+        echo '    <textarea id="wpcgpt-flow-code" rows="20" style="width:100%;font-family:Consolas,Monaco,monospace;"></textarea></p>';
+        echo '    <p><button type="button" id="wpcgpt-flow-validate" class="button button-secondary">Validate</button> <button type="button" id="wpcgpt-flow-save" class="button button-primary">Save Active Version</button> <button type="button" id="wpcgpt-flow-deactivate" class="button">Deactivate</button></p>';
+        echo '    <pre id="wpcgpt-flow-list-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
+        echo '    <p id="wpcgpt-flow-status" aria-live="polite"></p>';
+        echo '  </div>';
+        echo '</div>';
+    }
+
+    private function getDefaultFlowTemplate(): string
+    {
+        return implode("\n", array(
+            '$mode = isset($context[\'mode\']) ? (string) $context[\'mode\'] : \'turn\';',
+            '$state = isset($context[\'session\'][\'state\']) && is_array($context[\'session\'][\'state\']) ? $context[\'session\'][\'state\'] : array();',
+            '',
+            'if ($mode === \'initial\') {',
+            '    return array(',
+            '        \'initial_prompt\' => \'Willkommen. Wie kann ich helfen?\',',
+            '        \'status\' => \'running\',',
+            '        \'state\' => $state,',
+            '    );',
+            '}',
+            '',
+            '$userInput = isset($context[\'user_input\']) ? trim((string) $context[\'user_input\']) : \'\';',
+            '',
+            'return array(',
+            '    \'assistant_reply\' => \'Du hast gesagt: \'. $userInput,',
+            '    \'status\' => \'completed\',',
+            '    \'state\' => $state,',
+            ');',
         ));
     }
 
