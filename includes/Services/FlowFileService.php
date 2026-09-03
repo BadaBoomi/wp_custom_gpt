@@ -20,7 +20,7 @@ class FlowFileService
     {
         $cleanFlowType = $this->normalizeFlowType($flowType);
         if ($cleanFlowType === '') {
-            return new WP_Error('invalid_flow_type', 'Flow type is required.', array('status' => 400));
+            return new WP_Error('invalid_flow_type', 'Flow-Typ ist erforderlich.', array('status' => 400));
         }
 
         $rows = $this->flowFileRepository->listByFlowType($cleanFlowType);
@@ -31,7 +31,7 @@ class FlowFileService
     {
         $cleanFlowType = $this->normalizeFlowType($flowType);
         if ($cleanFlowType === '') {
-            return new WP_Error('invalid_flow_type', 'Flow type is required.', array('status' => 400));
+            return new WP_Error('invalid_flow_type', 'Flow-Typ ist erforderlich.', array('status' => 400));
         }
 
         $validation = $this->validateUpload($file);
@@ -41,12 +41,12 @@ class FlowFileService
 
         $uploadDir = wp_upload_dir();
         if (!is_array($uploadDir) || !isset($uploadDir['basedir'], $uploadDir['baseurl'])) {
-            return new WP_Error('upload_dir_error', 'Could not resolve upload directory.', array('status' => 500));
+            return new WP_Error('upload_dir_error', 'Upload-Verzeichnis konnte nicht ermittelt werden.', array('status' => 500));
         }
 
         $targetDir = trailingslashit((string) $uploadDir['basedir']) . 'wpcgpt-flow-files/' . $cleanFlowType;
         if (!wp_mkdir_p($targetDir)) {
-            return new WP_Error('upload_dir_create_failed', 'Could not create target upload folder.', array('status' => 500));
+            return new WP_Error('upload_dir_create_failed', 'Zielordner fuer den Upload konnte nicht erstellt werden.', array('status' => 500));
         }
 
         $originalName = isset($file['name']) ? (string) $file['name'] : 'file';
@@ -59,12 +59,12 @@ class FlowFileService
         $tmpName = (string) ($file['tmp_name'] ?? '');
 
         if (!is_uploaded_file($tmpName)) {
-            return new WP_Error('upload_invalid_tmp', 'Upload source is invalid.', array('status' => 400));
+            return new WP_Error('upload_invalid_tmp', 'Upload-Quelle ist ungueltig.', array('status' => 400));
         }
 
         $targetPath = trailingslashit($targetDir) . $storedName;
         if (!move_uploaded_file($tmpName, $targetPath)) {
-            return new WP_Error('upload_move_failed', 'Could not move uploaded file.', array('status' => 500));
+            return new WP_Error('upload_move_failed', 'Hochgeladene Datei konnte nicht verschoben werden.', array('status' => 500));
         }
 
         $check = wp_check_filetype_and_ext($targetPath, $storedName);
@@ -88,7 +88,7 @@ class FlowFileService
 
         if (!$created) {
             @unlink($targetPath);
-            return new WP_Error('file_metadata_save_failed', 'Could not save file metadata.', array('status' => 500));
+            return new WP_Error('file_metadata_save_failed', 'Datei-Metadaten konnten nicht gespeichert werden.', array('status' => 500));
         }
 
         return $this->decorateFileRow($created);
@@ -121,21 +121,21 @@ class FlowFileService
     private function validateUpload(array $file): true|WP_Error
     {
         if (empty($file) || !isset($file['tmp_name'])) {
-            return new WP_Error('upload_missing_file', 'No file uploaded.', array('status' => 400));
+            return new WP_Error('upload_missing_file', 'Es wurde keine Datei hochgeladen.', array('status' => 400));
         }
 
         $errorCode = isset($file['error']) ? (int) $file['error'] : UPLOAD_ERR_OK;
         if ($errorCode !== UPLOAD_ERR_OK) {
-            return new WP_Error('upload_error', 'Upload failed with error code ' . $errorCode . '.', array('status' => 400));
+            return new WP_Error('upload_error', 'Upload fehlgeschlagen mit Fehlercode ' . $errorCode . '.', array('status' => 400));
         }
 
         $size = isset($file['size']) ? (int) $file['size'] : 0;
         if ($size <= 0) {
-            return new WP_Error('upload_empty_file', 'Uploaded file is empty.', array('status' => 400));
+            return new WP_Error('upload_empty_file', 'Die hochgeladene Datei ist leer.', array('status' => 400));
         }
 
         if ($size > self::MAX_FILE_BYTES) {
-            return new WP_Error('upload_too_large', 'Uploaded file exceeds 10 MB limit.', array('status' => 400));
+            return new WP_Error('upload_too_large', 'Die hochgeladene Datei ueberschreitet das Limit von 10 MB.', array('status' => 400));
         }
 
         $name = isset($file['name']) ? (string) $file['name'] : '';
@@ -143,7 +143,7 @@ class FlowFileService
         $allowed = array('xlsx', 'xls', 'csv', 'ods', 'tsv', 'txt', 'json');
 
         if (!in_array($ext, $allowed, true)) {
-            return new WP_Error('upload_type_not_allowed', 'Allowed file types: xlsx, xls, csv, ods, tsv, txt, json.', array('status' => 400));
+            return new WP_Error('upload_type_not_allowed', 'Erlaubte Dateitypen: xlsx, xls, csv, ods, tsv, txt, json.', array('status' => 400));
         }
 
         return true;

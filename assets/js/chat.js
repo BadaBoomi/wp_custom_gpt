@@ -50,11 +50,71 @@
         return fetch(WPCGPT_CHAT_CONFIG.restBase + path, requestOptions).then(function (response) {
             return response.json().then(function (body) {
                 if (!response.ok) {
-                    throw new Error((body && body.message) || 'Request failed.');
+                    throw new Error((body && body.message) || 'Anfrage fehlgeschlagen.');
                 }
                 return body;
             });
         });
+    }
+
+    function parseCustomAttributes(rawValue) {
+        if (!rawValue) {
+            return {};
+        }
+
+        if (typeof rawValue === 'object') {
+            return rawValue;
+        }
+
+        if (typeof rawValue !== 'string') {
+            return {};
+        }
+
+        try {
+            var parsed = JSON.parse(rawValue);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (error) {
+            return {};
+        }
+    }
+
+    function formatRoomDisplayName(room) {
+        var baseName = String((room && room.name) || '').trim();
+        var attrs = parseCustomAttributes(room && room.custom_attributes);
+        var orderedKeys = Object.keys(attrs).sort(function (a, b) {
+            var aKey = String(a || '').trim();
+            var bKey = String(b || '').trim();
+            var aAlias = aKey.toLowerCase() === 'alias';
+            var bAlias = bKey.toLowerCase() === 'alias';
+
+            if (aAlias && !bAlias) {
+                return -1;
+            }
+            if (!aAlias && bAlias) {
+                return 1;
+            }
+
+            return aKey.localeCompare(bKey, 'de', { sensitivity: 'base' });
+        });
+
+        var attrItems = orderedKeys
+            .map(function (key) {
+                var cleanKey = String(key || '').trim();
+                var cleanValue = String(attrs[key] || '').trim();
+                if (!cleanKey || !cleanValue) {
+                    return '';
+                }
+                return cleanKey + ': ' + cleanValue;
+            })
+            .filter(function (entry) {
+                return entry !== '';
+            });
+
+        if (attrItems.length === 0) {
+            return baseName;
+        }
+
+        return baseName + ' (' + attrItems.join(', ') + ')';
     }
 
     function extractInlineResponseButtons(text) {
@@ -92,6 +152,23 @@
         };
     }
 
+    function stripSetDirectives(text) {
+        var cleaned = text.replace(/\[set\|[^|\]\r\n]+\|[^\]\r\n]*\]/gi, '');
+        return cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    function normalizeEscapedLineBreaks(text) {
+        if (typeof text !== 'string') {
+            return '';
+        }
+
+        return text
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\n')
+            .replace(/W&amp;W/g, 'W&W');
+    }
+
     function renderActionButtons(buttons, mode) {
         if (!actionButtonsEl) {
             return;
@@ -120,7 +197,7 @@
                         label: button.label,
                         promptId: button.promptId || '',
                     };
-                    setStatus('Selected configuration: ' + button.label, false);
+                    setStatus('Konfiguration ausgewaehlt: ' + button.label, false);
                 }
                 messageInput.focus();
             });
@@ -164,7 +241,7 @@
 
         if (!messages.length) {
             var empty = document.createElement('div');
-            empty.textContent = 'No messages yet.';
+            empty.textContent = 'Noch keine Nachrichten.';
             empty.style.color = '#6a737d';
             messageOutput.appendChild(empty);
             renderActionButtons(getConfigurationButtons(), 'configuration');
@@ -176,6 +253,7 @@
         messages.forEach(function (message) {
             var contentText = message.content || '';
             if (message.role === 'assistant') {
+                contentText = normalizeEscapedLineBreaks(contentText);
                 var extracted = extractInlineResponseButtons(contentText);
                 contentText = extracted.cleanedText;
                 if (extracted.buttons.length > 0) {
@@ -188,6 +266,8 @@
                     });
                 }
             }
+
+            contentText = stripSetDirectives(contentText);
 
             if (!contentText.trim()) {
                 return;
@@ -227,11 +307,11 @@
     }
 
     function loadMessages() {
-        setStatus('Loading messages...', false);
+        setStatus('Nachrichten werden geladen...', false);
         request('/chats/' + chatId + '/messages', { method: 'GET' })
             .then(function (messages) {
                 renderMessages(messages);
-                setStatus('Messages loaded.', false);
+                setStatus('Nachrichten geladen.', false);
             })
             .catch(function (error) {
                 setStatus(error.message, true);
@@ -246,7 +326,7 @@
         request('/rooms', { method: 'GET' })
             .then(function (rooms) {
                 if (!Array.isArray(rooms)) {
-                    roomLabelEl.textContent = 'Room: #' + String(roomId);
+                    roomLabelEl.textContent = 'Raum: #' + String(roomId);
                     return;
                 }
 
@@ -255,14 +335,14 @@
                 });
 
                 if (room && room.name) {
-                    roomLabelEl.textContent = 'Room: ' + String(room.name);
+                    roomLabelEl.textContent = 'Raum: ' + formatRoomDisplayName(room);
                     return;
                 }
 
-                roomLabelEl.textContent = 'Room: #' + String(roomId);
+                roomLabelEl.textContent = 'Raum: #' + String(roomId);
             })
             .catch(function () {
-                roomLabelEl.textContent = 'Room: #' + String(roomId);
+                roomLabelEl.textContent = 'Raum: #' + String(roomId);
             });
     }
 
@@ -270,7 +350,7 @@
         event.preventDefault();
 
         if (!chatsPage) {
-            setStatus('Missing chats_page in shortcode.', true);
+            setStatus('chats_page fehlt im Shortcode.', true);
             return;
         }
 
@@ -281,11 +361,11 @@
     sendMessageBtn.addEventListener('click', function () {
         var message = (messageInput.value || '').trim();
         if (!message) {
-            setStatus('Please enter a message.', true);
+            setStatus('Bitte eine Nachricht eingeben.', true);
             return;
         }
 
-        setStatus('Sending message to OpenAI...', false);
+        setStatus('Nachricht wird gesendet...', false);
 
         request('/chats/' + chatId + '/send', {
             method: 'POST',
@@ -296,7 +376,7 @@
         })
             .then(function () {
                 messageInput.value = '';
-                setStatus('Assistant response saved.', false);
+                setStatus('Antwort wurde gespeichert.', false);
                 loadMessages();
             })
             .catch(function (error) {

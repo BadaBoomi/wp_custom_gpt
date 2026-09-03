@@ -59,7 +59,7 @@ class Plugin
 
         $settingsController = new SettingsController($settingsService, $openAiService);
         $roomsController = new RoomsController($roomRepository);
-        $chatsController = new ChatsController($chatRepository, $openAiService, $flowSessionRepository, $flowRuntimeService);
+        $chatsController = new ChatsController($chatRepository, $roomRepository, $openAiService, $flowSessionRepository, $flowRuntimeService);
         $flowCodeController = new FlowCodeController($flowRuntimeService, $flowFileService);
 
         $settingsController->registerRoutes();
@@ -173,25 +173,25 @@ class Plugin
     public function renderFlowsAdminPage(): void
     {
         if (!current_user_can('manage_options')) {
-            echo '<div class="wrap"><p>You do not have permission to manage flows.</p></div>';
+            echo '<div class="wrap"><p>Sie haben keine Berechtigung, Flows zu verwalten.</p></div>';
             return;
         }
 
         echo '<div class="wrap">';
-        echo '  <h1>WP Custom GPT Flow Management</h1>';
-        echo '  <p>Manage server-side flow handlers by flow type. Code is stored in the WordPress database and executed for running flow sessions.</p>';
+        echo '  <h1>WP Custom GPT Flow-Verwaltung</h1>';
+        echo '  <p>Verwalten Sie serverseitige Flow-Handler nach Flow-Typ. Der Code wird in der WordPress-Datenbank gespeichert und fuer laufende Flow-Sitzungen ausgefuehrt.</p>';
         echo '  <div id="wpcgpt-flow-admin-app" style="max-width:1100px;">';
-        echo '    <p><label for="wpcgpt-flow-type"><strong>Flow Type</strong></label><br />';
+        echo '    <p><label for="wpcgpt-flow-type"><strong>Flow-Typ</strong></label><br />';
         echo '    <input id="wpcgpt-flow-type" type="text" placeholder="collect_contact" style="width:100%;max-width:360px;" /></p>';
-        echo '    <p><button type="button" id="wpcgpt-flow-load" class="button">Load</button> <button type="button" id="wpcgpt-flow-list" class="button">List</button> <button type="button" id="wpcgpt-flow-template" class="button">Insert Template</button></p>';
-        echo '    <p><label for="wpcgpt-flow-code"><strong>Flow PHP Code (function body, no &lt;?php tag)</strong></label><br />';
+        echo '    <p><button type="button" id="wpcgpt-flow-load" class="button">Laden</button> <button type="button" id="wpcgpt-flow-list" class="button">Auflisten</button> <button type="button" id="wpcgpt-flow-template" class="button">Vorlage einfuegen</button></p>';
+        echo '    <p><label for="wpcgpt-flow-code"><strong>Flow-PHP-Code (Funktionsinhalt, ohne &lt;?php-Tag)</strong></label><br />';
         echo '    <textarea id="wpcgpt-flow-code" rows="20" style="width:100%;font-family:Consolas,Monaco,monospace;"></textarea></p>';
-        echo '    <p><button type="button" id="wpcgpt-flow-validate" class="button button-secondary">Validate</button> <button type="button" id="wpcgpt-flow-save" class="button button-primary">Save Active Version</button> <button type="button" id="wpcgpt-flow-deactivate" class="button">Deactivate</button></p>';
+        echo '    <p><button type="button" id="wpcgpt-flow-validate" class="button button-secondary">Validieren</button> <button type="button" id="wpcgpt-flow-save" class="button button-primary">Aktive Version speichern</button> <button type="button" id="wpcgpt-flow-deactivate" class="button">Deaktivieren</button></p>';
         echo '    <hr />';
-        echo '    <h2>Flow Files</h2>';
-        echo '    <p>Upload files for this flow type (xlsx, xls, csv, ods, tsv, txt, json; max 10 MB).</p>';
-        echo '    <p><input id="wpcgpt-flow-file-input" type="file" /> <button type="button" id="wpcgpt-flow-file-upload" class="button button-secondary">Upload File</button> <button type="button" id="wpcgpt-flow-file-refresh" class="button">Refresh File List</button></p>';
-        echo '    <p><label for="wpcgpt-flow-file-delete-id">File ID to delete</label> <input id="wpcgpt-flow-file-delete-id" type="number" min="1" style="width:100px;" /> <button type="button" id="wpcgpt-flow-file-delete" class="button">Delete File</button></p>';
+        echo '    <h2>Flow-Dateien</h2>';
+        echo '    <p>Dateien fuer diesen Flow-Typ hochladen (xlsx, xls, csv, ods, tsv, txt, json; max. 10 MB).</p>';
+        echo '    <p><input id="wpcgpt-flow-file-input" type="file" /> <button type="button" id="wpcgpt-flow-file-upload" class="button button-secondary">Datei hochladen</button> <button type="button" id="wpcgpt-flow-file-refresh" class="button">Dateiliste aktualisieren</button></p>';
+        echo '    <p><label for="wpcgpt-flow-file-delete-id">Zu loeschende Datei-ID</label> <input id="wpcgpt-flow-file-delete-id" type="number" min="1" style="width:100px;" /> <button type="button" id="wpcgpt-flow-file-delete" class="button">Datei loeschen</button></p>';
         echo '    <pre id="wpcgpt-flow-files-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <pre id="wpcgpt-flow-list-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <p id="wpcgpt-flow-status" aria-live="polite"></p>';
@@ -226,7 +226,7 @@ class Plugin
     public function renderRoomsShortcode($atts = array()): string
     {
         if (!is_user_logged_in()) {
-            return '<p>Please log in to use WP Custom GPT.</p>';
+            return '<p>Bitte melden Sie sich an, um WP Custom GPT zu nutzen.</p>';
         }
 
         $atts = shortcode_atts(array(
@@ -240,15 +240,15 @@ class Plugin
         $html = '';
         $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" data-chats-page="' . esc_attr($chatsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
-        $html .= '    <h2>Room Management</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh">Refresh Rooms</button>';
+        $html .= '    <h2>Raumverwaltung</h2>';
+        $html .= '    <button type="button" id="wpcgpt-refresh">Raeume aktualisieren</button>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <input id="wpcgpt-room-name" type="text" maxlength="120" placeholder="New room name" />';
-        $html .= '    <button type="button" id="wpcgpt-create-room">Create Room</button>';
+        $html .= '    <input id="wpcgpt-room-name" type="text" maxlength="120" placeholder="Neuer Raumname" />';
+        $html .= '    <button type="button" id="wpcgpt-create-room">Raum erstellen</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-room-list"></ul>';
-        $html .= '  <p id="wpcgpt-room-hint">Use shortcode attribute chats_page to define where users land when entering a room.</p>';
+        $html .= '  <p id="wpcgpt-room-hint">Mit dem Shortcode-Attribut chats_page legen Sie fest, wohin Nutzer beim Betreten eines Raums weitergeleitet werden.</p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -258,12 +258,12 @@ class Plugin
     public function renderChatsShortcode($atts = array()): string
     {
         if (!is_user_logged_in()) {
-            return '<p>Please log in to use WP Custom GPT.</p>';
+            return '<p>Bitte melden Sie sich an, um WP Custom GPT zu nutzen.</p>';
         }
 
         $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
         if ($roomId <= 0) {
-            return '<p>Missing room_id in URL. Open this page from room management.</p>';
+            return '<p>room_id fehlt in der URL. Oeffnen Sie diese Seite aus der Raumverwaltung.</p>';
         }
 
         $atts = shortcode_atts(array(
@@ -279,16 +279,16 @@ class Plugin
         $html = '';
         $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
-        $html .= '    <h2>Chat Management</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh-chats">Refresh Chats</button>';
+        $html .= '    <h2>Chatverwaltung</h2>';
+        $html .= '    <button type="button" id="wpcgpt-refresh-chats">Chats aktualisieren</button>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"></p>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <input id="wpcgpt-chat-title" type="text" maxlength="120" placeholder="New chat title" />';
-        $html .= '    <button type="button" id="wpcgpt-create-chat">Create Chat</button>';
+        $html .= '    <input id="wpcgpt-chat-title" type="text" maxlength="120" placeholder="Neuer Chat-Titel" />';
+        $html .= '    <button type="button" id="wpcgpt-create-chat">Chat erstellen</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-chat-list"></ul>';
-        $html .= '  <p><a id="wpcgpt-back-rooms" href="#">Back to Rooms</a></p>';
+        $html .= '  <p><a id="wpcgpt-back-rooms" href="#">Zurueck zu den Raeumen</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -298,13 +298,13 @@ class Plugin
     public function renderChatShortcode($atts = array()): string
     {
         if (!is_user_logged_in()) {
-            return '<p>Please log in to use WP Custom GPT.</p>';
+            return '<p>Bitte melden Sie sich an, um WP Custom GPT zu nutzen.</p>';
         }
 
         $chatId = isset($_GET['chat_id']) ? absint($_GET['chat_id']) : 0;
         $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
         if ($chatId <= 0) {
-            return '<p>Missing chat_id in URL. Open this page from chat management.</p>';
+            return '<p>chat_id fehlt in der URL. Oeffnen Sie diese Seite aus der Chatverwaltung.</p>';
         }
 
         $atts = shortcode_atts(array(
@@ -325,7 +325,7 @@ class Plugin
         $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chat</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh-messages">Refresh Messages</button>';
+        $html .= '    <button type="button" id="wpcgpt-refresh-messages">Nachrichten aktualisieren</button>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"></p>';
         $html .= '  <div id="wpcgpt-message-output" style="width:100%;max-width:760px;height:360px;overflow-y:auto;border:1px solid #d0d7de;border-radius:8px;padding:12px;background:#ffffff;"></div>';
@@ -333,12 +333,12 @@ class Plugin
         $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:760px;"></div>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Type your message" style="width:100%;max-width:720px;"></textarea>';
+        $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Nachricht eingeben" style="width:100%;max-width:720px;"></textarea>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <button type="button" id="wpcgpt-send-message">Send to OpenAI</button>';
+        $html .= '    <button type="button" id="wpcgpt-send-message">Senden</button>';
         $html .= '  </div>';
-        $html .= '  <p><a id="wpcgpt-back-chats" href="#">Back to Chats</a></p>';
+        $html .= '  <p><a id="wpcgpt-back-chats" href="#">Zurueck zu den Chats</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -348,28 +348,28 @@ class Plugin
     public function renderSettingsShortcode(): string
     {
         if (!current_user_can('manage_options')) {
-            return '<p>You do not have permission to manage WP Custom GPT settings.</p>';
+            return '<p>Sie haben keine Berechtigung, die WP Custom GPT Einstellungen zu verwalten.</p>';
         }
 
         wp_enqueue_script(self::SETTINGS_SCRIPT_HANDLE);
 
         $html = '';
         $html .= '<div id="wpcgpt-settings-app" class="wpcgpt-settings-app">';
-        $html .= '  <h2>WP Custom GPT Settings</h2>';
+        $html .= '  <h2>WP Custom GPT Einstellungen</h2>';
         $html .= '  <form id="wpcgpt-settings-form">';
-        $html .= '    <p><label for="wpcgpt-api-key">API Key (leave empty to keep current)</label><br />';
+        $html .= '    <p><label for="wpcgpt-api-key">API-Key (leer lassen, um den aktuellen zu behalten)</label><br />';
         $html .= '    <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
         $html .= '    <p id="wpcgpt-api-key-current"></p>';
-        $html .= '    <p><label for="wpcgpt-prompt-id">Prompt ID</label><br />';
+        $html .= '    <p><label for="wpcgpt-prompt-id">Prompt-ID</label><br />';
         $html .= '    <input id="wpcgpt-prompt-id" type="text" maxlength="191" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p><label for="wpcgpt-vector-store-ids">Vector Store IDs (comma separated)</label><br />';
+        $html .= '    <p><label for="wpcgpt-vector-store-ids">Vector-Store-IDs (durch Komma getrennt)</label><br />';
         $html .= '    <input id="wpcgpt-vector-store-ids" type="text" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p><label for="wpcgpt-user-email">User Email</label><br />';
+        $html .= '    <p><label for="wpcgpt-user-email">Benutzer-E-Mail</label><br />';
         $html .= '    <input id="wpcgpt-user-email" type="email" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p><label for="wpcgpt-starters">Starters (Markdown table)</label><br />';
+        $html .= '    <p><label for="wpcgpt-starters">Starter (Markdown-Tabelle)</label><br />';
         $html .= '    <textarea id="wpcgpt-starters" rows="8" style="width:100%;max-width:760px;"></textarea></p>';
-        $html .= '    <p><button type="submit">Save Settings</button></p>';
-        $html .= '    <p><button type="button" id="wpcgpt-reload-configuration">Reload Configuration (GET_CONFIGURATION)</button></p>';
+        $html .= '    <p><button type="submit">Einstellungen speichern</button></p>';
+        $html .= '    <p><button type="button" id="wpcgpt-reload-configuration">Konfiguration neu laden (GET_CONFIGURATION)</button></p>';
         $html .= '  </form>';
         $html .= '  <p id="wpcgpt-settings-status" aria-live="polite"></p>';
         $html .= '</div>';

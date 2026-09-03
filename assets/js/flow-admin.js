@@ -56,7 +56,7 @@
 
     async function request(path, method, body) {
         if (!restBase) {
-            throw new Error("REST base URL is missing.");
+            throw new Error("REST-Basis-URL fehlt.");
         }
 
         const response = await fetch(restBase + path, {
@@ -74,7 +74,7 @@
         });
 
         if (!response.ok) {
-            const message = data && data.message ? data.message : "Request failed.";
+            const message = data && data.message ? data.message : "Anfrage fehlgeschlagen.";
             throw new Error(message);
         }
 
@@ -83,7 +83,7 @@
 
     async function uploadFile(path, file) {
         if (!restBase) {
-            throw new Error("REST base URL is missing.");
+            throw new Error("REST-Basis-URL fehlt.");
         }
 
         const formData = new FormData();
@@ -103,7 +103,7 @@
         });
 
         if (!response.ok) {
-            const message = data && data.message ? data.message : "Upload failed.";
+            const message = data && data.message ? data.message : "Upload fehlgeschlagen.";
             throw new Error(message);
         }
 
@@ -113,7 +113,7 @@
     async function listFlows() {
         const data = await request("/flows", "GET");
         if (!Array.isArray(data)) {
-            listOutput.textContent = "No flow list available.";
+            listOutput.textContent = "Keine Flow-Liste verfuegbar.";
             return;
         }
 
@@ -134,24 +134,24 @@
     async function loadFlow() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         const data = await request("/flows/" + encodeURIComponent(flowType), "GET");
         setCode(typeof data.code_php === "string" ? data.code_php : "");
-        setStatus("Flow loaded: " + flowType + " (v" + String(data.version || "?") + ")", false);
+        setStatus("Flow geladen: " + flowType + " (v" + String(data.version || "?") + ")", false);
     }
 
     async function validateFlow() {
         const code = getCode();
         await request("/flows/validate", "POST", { code_php: code });
-        setStatus("Flow code is valid.", false);
+        setStatus("Flow-Code ist gueltig.", false);
     }
 
     async function saveFlow() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         const code = getCode();
@@ -159,23 +159,23 @@
             code_php: code,
         });
 
-        setStatus("Flow saved: " + flowType + " (v" + String(data.version || "?") + ")", false);
+        setStatus("Flow gespeichert: " + flowType + " (v" + String(data.version || "?") + ")", false);
     }
 
     async function deactivateFlow() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         await request("/flows/" + encodeURIComponent(flowType), "DELETE");
-        setStatus("Flow deactivated: " + flowType, false);
+        setStatus("Flow deaktiviert: " + flowType, false);
     }
 
     async function refreshFlowFiles() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         const data = await request("/flows/" + encodeURIComponent(flowType) + "/files", "GET");
@@ -184,7 +184,7 @@
         }
 
         if (!Array.isArray(data) || data.length === 0) {
-            filesOutput.textContent = "No files uploaded for this flow.";
+            filesOutput.textContent = "Fuer diesen Flow wurden noch keine Dateien hochgeladen.";
             return;
         }
 
@@ -207,36 +207,36 @@
     async function uploadFlowFile() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            throw new Error("Please select a file to upload.");
+            throw new Error("Bitte waehlen Sie eine Datei zum Hochladen aus.");
         }
 
         await uploadFile("/flows/" + encodeURIComponent(flowType) + "/files", fileInput.files[0]);
         fileInput.value = "";
-        setStatus("File uploaded.", false);
+        setStatus("Datei hochgeladen.", false);
         await refreshFlowFiles();
     }
 
     async function deleteFlowFile() {
         const flowType = getFlowType();
         if (!flowType) {
-            throw new Error("Flow type is required.");
+            throw new Error("Flow-Typ ist erforderlich.");
         }
 
         if (!fileDeleteIdInput) {
-            throw new Error("Delete input is unavailable.");
+            throw new Error("Eingabe fuer Loeschen ist nicht verfuegbar.");
         }
 
         const fileId = parseInt(String(fileDeleteIdInput.value || "0"), 10);
         if (!fileId || fileId <= 0) {
-            throw new Error("Please provide a valid file id.");
+            throw new Error("Bitte eine gueltige Datei-ID eingeben.");
         }
 
         await request("/flows/" + encodeURIComponent(flowType) + "/files/" + String(fileId), "DELETE");
-        setStatus("File deleted: #" + String(fileId), false);
+        setStatus("Datei geloescht: #" + String(fileId), false);
         await refreshFlowFiles();
     }
 
@@ -246,11 +246,11 @@
         }
 
         button.addEventListener("click", async function () {
-            setStatus("Working...", false);
+            setStatus("Wird bearbeitet...", false);
             try {
                 await action();
             } catch (error) {
-                setStatus(error instanceof Error ? error.message : "Unknown error", true);
+                setStatus(error instanceof Error ? error.message : "Unbekannter Fehler", true);
             }
         });
     }
@@ -267,7 +267,7 @@
     if (templateButton) {
         templateButton.addEventListener("click", function () {
             setCode(typeof config.defaultFlowCode === "string" ? config.defaultFlowCode : "");
-            setStatus("Template inserted.", false);
+            setStatus("Vorlage eingefuegt.", false);
         });
     }
 })();

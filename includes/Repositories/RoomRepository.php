@@ -90,6 +90,66 @@ class RoomRepository
         return $deleted !== false && $deleted > 0;
     }
 
+    public function upsertCustomAttributes(int $roomId, int $userId, array $attributes): ?array
+    {
+        if (empty($attributes)) {
+            return $this->findByIdForUser($roomId, $userId);
+        }
+
+        $room = $this->findByIdForUser($roomId, $userId);
+        if (!$room) {
+            return null;
+        }
+
+        $existing = $this->decodeCustomAttributes((string) ($room['custom_attributes'] ?? ''));
+
+        foreach ($attributes as $key => $value) {
+            $cleanKey = sanitize_text_field((string) $key);
+            $cleanKey = preg_replace('/[^a-zA-Z0-9 _\-]/', '', $cleanKey);
+            $cleanKey = is_string($cleanKey) ? trim($cleanKey) : '';
+            if ($cleanKey === '') {
+                continue;
+            }
+
+            $existing[$cleanKey] = sanitize_text_field((string) $value);
+        }
+
+        $encoded = wp_json_encode($existing);
+        if (!is_string($encoded)) {
+            return null;
+        }
+
+        $updated = $this->wpdb->update(
+            $this->table,
+            array(
+                'custom_attributes' => $encoded,
+                'updated_at' => current_time('mysql', true),
+            ),
+            array(
+                'id' => $roomId,
+                'user_id' => $userId,
+            ),
+            array('%s', '%s'),
+            array('%d', '%d')
+        );
+
+        if ($updated === false) {
+            return null;
+        }
+
+        return $this->findByIdForUser($roomId, $userId);
+    }
+
+    public function getCustomAttributesForRoom(int $roomId, int $userId): array
+    {
+        $room = $this->findByIdForUser($roomId, $userId);
+        if (!$room) {
+            return array();
+        }
+
+        return $this->decodeCustomAttributes((string) ($room['custom_attributes'] ?? ''));
+    }
+
     private function findByIdForUser(int $roomId, int $userId): ?array
     {
         $sql = $this->wpdb->prepare(
@@ -119,5 +179,20 @@ class RoomRepository
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
         );
+    }
+
+    private function decodeCustomAttributes(string $value): array
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return array();
+        }
+
+        $decoded = json_decode($trimmed, true);
+        if (!is_array($decoded)) {
+            return array();
+        }
+
+        return $decoded;
     }
 }

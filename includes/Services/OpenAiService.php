@@ -21,7 +21,7 @@ class OpenAiService
         $apiKey = (string) ($runtime['api_key'] ?? '');
 
         if ($apiKey === '') {
-            return new WP_Error('missing_api_key', 'OpenAI API key is not configured.', array('status' => 400));
+            return new WP_Error('missing_api_key', 'OpenAI API-Key ist nicht konfiguriert.', array('status' => 400));
         }
 
         $payload = array(
@@ -72,7 +72,7 @@ class OpenAiService
         $body = json_decode((string) wp_remote_retrieve_body($response), true);
 
         if ($statusCode >= 400) {
-            $message = 'OpenAI request failed.';
+            $message = 'OpenAI-Anfrage fehlgeschlagen.';
             if (is_array($body) && isset($body['error']['message'])) {
                 $message = (string) $body['error']['message'];
             }
@@ -82,7 +82,7 @@ class OpenAiService
 
         $assistantText = $this->extractAssistantText($body);
         if ($assistantText === '') {
-            return new WP_Error('openai_empty_response', 'OpenAI returned no assistant text.', array('status' => 502));
+            return new WP_Error('openai_empty_response', 'OpenAI hat keinen Assistenten-Text zurueckgegeben.', array('status' => 502));
         }
 
         return array(
@@ -97,7 +97,7 @@ class OpenAiService
         $promptId = trim((string) ($runtime['prompt_id'] ?? ''));
 
         if ($promptId === '') {
-            return new WP_Error('missing_prompt_id', 'Prompt ID is required to reload configuration.', array('status' => 400));
+            return new WP_Error('missing_prompt_id', 'Prompt-ID ist zum Neuladen der Konfiguration erforderlich.', array('status' => 400));
         }
 
         $userEmail = trim((string) ($runtime['user_email'] ?? ''));
@@ -120,7 +120,7 @@ class OpenAiService
 
         $assistantText = $this->extractAssistantText($response);
         if ($assistantText === '') {
-            return new WP_Error('openai_empty_response', 'OpenAI returned no assistant text.', array('status' => 502));
+            return new WP_Error('openai_empty_response', 'OpenAI hat keinen Assistenten-Text zurueckgegeben.', array('status' => 502));
         }
 
         return array(
@@ -171,7 +171,7 @@ class OpenAiService
         $apiKey = (string) ($runtime['api_key'] ?? '');
 
         if ($apiKey === '') {
-            return new WP_Error('missing_api_key', 'OpenAI API key is not configured.', array('status' => 400));
+            return new WP_Error('missing_api_key', 'OpenAI API-Key ist nicht konfiguriert.', array('status' => 400));
         }
 
         $headers = array(
@@ -198,7 +198,7 @@ class OpenAiService
         $body = json_decode((string) wp_remote_retrieve_body($response), true);
 
         if ($statusCode >= 400) {
-            $message = 'OpenAI request failed.';
+            $message = 'OpenAI-Anfrage fehlgeschlagen.';
             if (is_array($body) && isset($body['error']['message'])) {
                 $message = (string) $body['error']['message'];
             }

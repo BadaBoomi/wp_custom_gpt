@@ -38,7 +38,7 @@ class FlowRuntimeService
 
         $saved = $this->flowCodeRepository->save($flowType, $codePhp, $updatedBy);
         if (!$saved) {
-            return new WP_Error('flow_save_failed', 'Could not save flow code.', array('status' => 500));
+            return new WP_Error('flow_save_failed', 'Flow-Code konnte nicht gespeichert werden.', array('status' => 500));
         }
 
         return $saved;
@@ -80,15 +80,15 @@ class FlowRuntimeService
     {
         $trimmed = trim($codePhp);
         if ($trimmed === '') {
-            return new WP_Error('flow_code_empty', 'Flow code must not be empty.', array('status' => 400));
+            return new WP_Error('flow_code_empty', 'Flow-Code darf nicht leer sein.', array('status' => 400));
         }
 
         if (strlen($codePhp) > self::MAX_CODE_BYTES) {
-            return new WP_Error('flow_code_too_large', 'Flow code exceeds the size limit.', array('status' => 400));
+            return new WP_Error('flow_code_too_large', 'Flow-Code ueberschreitet das Groessenlimit.', array('status' => 400));
         }
 
         if (stripos($codePhp, '<?php') !== false) {
-            return new WP_Error('flow_code_invalid_format', 'Do not include PHP opening tags in flow code.', array('status' => 400));
+            return new WP_Error('flow_code_invalid_format', 'Bitte keine PHP-Start-Tags im Flow-Code verwenden.', array('status' => 400));
         }
 
         $forbiddenTokens = array(
@@ -117,7 +117,7 @@ class FlowRuntimeService
         $lower = strtolower($codePhp);
         foreach ($forbiddenTokens as $token) {
             if (strpos($lower, $token) !== false) {
-                return new WP_Error('flow_code_forbidden_token', 'Flow code uses forbidden token: ' . $token, array('status' => 400));
+                return new WP_Error('flow_code_forbidden_token', 'Flow-Code verwendet ein verbotenes Token: ' . $token, array('status' => 400));
             }
         }
 
@@ -132,7 +132,7 @@ class FlowRuntimeService
         }
 
         if (!is_callable($compiled)) {
-            return new WP_Error('flow_code_not_callable', 'Flow code could not be compiled.', array('status' => 400));
+            return new WP_Error('flow_code_not_callable', 'Flow-Code konnte nicht kompiliert werden.', array('status' => 400));
         }
 
         return true;
@@ -142,7 +142,7 @@ class FlowRuntimeService
     {
         $flow = $this->flowCodeRepository->findActiveByFlowType($flowType);
         if (!$flow) {
-            return new WP_Error('flow_not_found', 'No active flow definition found for flow type.', array('status' => 404));
+            return new WP_Error('flow_not_found', 'Keine aktive Flow-Definition fuer diesen Flow-Typ gefunden.', array('status' => 404));
         }
 
         $flowFiles = $this->flowFileService->listFiles($flowType);
@@ -164,7 +164,7 @@ class FlowRuntimeService
         }
 
         if (!is_array($rawResult)) {
-            return new WP_Error('flow_invalid_result', 'Flow handler must return an array.', array('status' => 500));
+            return new WP_Error('flow_invalid_result', 'Flow-Handler muss ein Array zurueckgeben.', array('status' => 500));
         }
 
         return $this->normalizeResult($rawResult);
@@ -183,7 +183,7 @@ class FlowRuntimeService
         }
 
         if (!is_callable($compiled)) {
-            return new WP_Error('flow_code_not_callable', 'Flow code could not be compiled.', array('status' => 500));
+            return new WP_Error('flow_code_not_callable', 'Flow-Code konnte nicht kompiliert werden.', array('status' => 500));
         }
 
         return $compiled;
@@ -193,14 +193,14 @@ class FlowRuntimeService
     {
         $status = isset($rawResult['status']) ? strtolower((string) $rawResult['status']) : 'running';
         if (!in_array($status, array('running', 'completed', 'aborted'), true)) {
-            return new WP_Error('flow_invalid_status', 'Flow status must be running, completed or aborted.', array('status' => 500));
+            return new WP_Error('flow_invalid_status', 'Flow-Status muss running, completed oder aborted sein.', array('status' => 500));
         }
 
         $assistantReply = isset($rawResult['assistant_reply']) ? trim((string) $rawResult['assistant_reply']) : '';
         $initialPrompt = isset($rawResult['initial_prompt']) ? trim((string) $rawResult['initial_prompt']) : '';
 
         if ($assistantReply === '' && $initialPrompt === '') {
-            return new WP_Error('flow_missing_reply', 'Flow must return assistant_reply or initial_prompt.', array('status' => 500));
+            return new WP_Error('flow_missing_reply', 'Flow muss assistant_reply oder initial_prompt zurueckgeben.', array('status' => 500));
         }
 
         $state = isset($rawResult['state']) && is_array($rawResult['state']) ? $rawResult['state'] : array();

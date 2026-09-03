@@ -35,7 +35,7 @@
         return fetch(WPCGPT_SETTINGS_CONFIG.restBase + path, options).then(function (response) {
             return response.json().then(function (payload) {
                 if (!response.ok) {
-                    throw new Error((payload && payload.message) || 'Request failed.');
+                    throw new Error((payload && payload.message) || 'Anfrage fehlgeschlagen.');
                 }
                 return payload;
             });
@@ -49,18 +49,18 @@
         startersInput.value = data.starters || '';
 
         if (data.has_api_key) {
-            apiKeyCurrentEl.textContent = 'Current API key: ' + (data.api_key_masked || '(hidden)');
+            apiKeyCurrentEl.textContent = 'Aktueller API-Key: ' + (data.api_key_masked || '(versteckt)');
         } else {
-            apiKeyCurrentEl.textContent = 'No API key is stored yet.';
+            apiKeyCurrentEl.textContent = 'Es ist noch kein API-Key gespeichert.';
         }
     }
 
     function loadSettings() {
-        setStatus('Loading settings...', false);
+        setStatus('Einstellungen werden geladen...', false);
         request('GET', '/settings')
             .then(function (data) {
                 fillForm(data);
-                setStatus('Settings loaded.', false);
+                setStatus('Einstellungen geladen.', false);
             })
             .catch(function (error) {
                 setStatus(error.message, true);
@@ -82,13 +82,13 @@
             payload.api_key = apiKeyValue;
         }
 
-        setStatus('Saving settings...', false);
+        setStatus('Einstellungen werden gespeichert...', false);
 
         request('POST', '/settings', payload)
             .then(function (data) {
                 apiKeyInput.value = '';
                 fillForm(data);
-                setStatus('Settings saved.', false);
+                setStatus('Einstellungen gespeichert.', false);
             })
             .catch(function (error) {
                 setStatus(error.message, true);
@@ -97,11 +97,11 @@
 
     if (reloadConfigurationBtn) {
         reloadConfigurationBtn.addEventListener('click', function () {
-            setStatus('Reloading configuration from GET_CONFIGURATION...', false);
+            setStatus('Konfiguration aus GET_CONFIGURATION wird neu geladen...', false);
             request('POST', '/settings/reload-configuration')
                 .then(function (data) {
                     fillForm(data);
-                    setStatus('Configuration reloaded and saved.', false);
+                    setStatus('Konfiguration neu geladen und gespeichert.', false);
                 })
                 .catch(function (error) {
                     setStatus(error.message, true);

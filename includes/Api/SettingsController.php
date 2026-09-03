@@ -53,7 +53,7 @@ class SettingsController
     {
         $payload = $request->get_json_params();
         if (!is_array($payload)) {
-            return new WP_Error('invalid_payload', 'Request body must be JSON.', array('status' => 400));
+            return new WP_Error('invalid_payload', 'Request-Body muss JSON sein.', array('status' => 400));
         }
 
         return $this->settingsService->saveSettings($payload);
@@ -69,7 +69,7 @@ class SettingsController
         $assistantText = (string) ($result['assistant_text'] ?? '');
         $rows = $this->settingsService->parseConfigurationPrompts($assistantText);
         if (empty($rows)) {
-            return new WP_Error('configuration_parse_failed', 'No configuration rows found in assistant response.', array('status' => 422));
+            return new WP_Error('configuration_parse_failed', 'Keine Konfigurationszeilen in der Assistenten-Antwort gefunden.', array('status' => 422));
         }
 
         $this->settingsService->saveConfigurationRows($rows);

@@ -58,7 +58,7 @@ class RoomsController
         $name = is_array($payload) ? (string) ($payload['name'] ?? '') : '';
 
         if (trim($name) === '') {
-            return new WP_Error('invalid_name', 'Room name is required.', array('status' => 400));
+            return new WP_Error('invalid_name', 'Raumname ist erforderlich.', array('status' => 400));
         }
 
         $room = $this->roomRepository->create((int) get_current_user_id(), $name);
@@ -73,13 +73,13 @@ class RoomsController
         $name = is_array($payload) ? (string) ($payload['name'] ?? '') : '';
 
         if (trim($name) === '') {
-            return new WP_Error('invalid_name', 'Room name is required.', array('status' => 400));
+            return new WP_Error('invalid_name', 'Raumname ist erforderlich.', array('status' => 400));
         }
 
         $updated = $this->roomRepository->rename($roomId, (int) get_current_user_id(), $name);
 
         if (!$updated) {
-            return new WP_Error('not_found', 'Room not found.', array('status' => 404));
+            return new WP_Error('not_found', 'Raum nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response($updated);
@@ -91,7 +91,7 @@ class RoomsController
         $deleted = $this->roomRepository->delete($roomId, (int) get_current_user_id());
 
         if (!$deleted) {
-            return new WP_Error('not_found', 'Room not found.', array('status' => 404));
+            return new WP_Error('not_found', 'Raum nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response(array('deleted' => true));

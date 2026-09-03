@@ -6,6 +6,7 @@ use WP_Error;
 use WP_REST_Request;
 use WpCustomGpt\Repositories\ChatRepository;
 use WpCustomGpt\Repositories\FlowSessionRepository;
+use WpCustomGpt\Repositories\RoomRepository;
 use WpCustomGpt\Services\FlowRuntimeService;
 use WpCustomGpt\Services\OpenAiService;
 
@@ -14,18 +15,21 @@ class ChatsController
     private const NAMESPACE = 'wp-custom-gpt/v1';
 
     private ChatRepository $chatRepository;
+    private RoomRepository $roomRepository;
     private OpenAiService $openAiService;
     private FlowSessionRepository $flowSessionRepository;
     private FlowRuntimeService $flowRuntimeService;
 
     public function __construct(
         ChatRepository $chatRepository,
+        RoomRepository $roomRepository,
         OpenAiService $openAiService,
         FlowSessionRepository $flowSessionRepository,
         FlowRuntimeService $flowRuntimeService
     )
     {
         $this->chatRepository = $chatRepository;
+        $this->roomRepository = $roomRepository;
         $this->openAiService = $openAiService;
         $this->flowSessionRepository = $flowSessionRepository;
         $this->flowRuntimeService = $flowRuntimeService;
@@ -78,16 +82,16 @@ class ChatsController
     {
         $roomId = (int) $request->get_param('roomId');
         $payload = $request->get_json_params();
-        $title = is_array($payload) ? (string) ($payload['title'] ?? 'New Chat') : 'New Chat';
+        $title = is_array($payload) ? (string) ($payload['title'] ?? 'Neuer Chat') : 'Neuer Chat';
 
         if (trim($title) === '') {
-            $title = 'New Chat';
+            $title = 'Neuer Chat';
         }
 
         $chat = $this->chatRepository->createChat($roomId, (int) get_current_user_id(), $title);
 
         if (!$chat) {
-            return new WP_Error('room_not_found', 'Room not found.', array('status' => 404));
+            return new WP_Error('room_not_found', 'Raum nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response($chat);
@@ -108,17 +112,17 @@ class ChatsController
         $content = is_array($payload) ? (string) ($payload['content'] ?? '') : '';
 
         if (trim($content) === '') {
-            return new WP_Error('invalid_content', 'Message content is required.', array('status' => 400));
+            return new WP_Error('invalid_content', 'Nachrichteninhalt ist erforderlich.', array('status' => 400));
         }
 
         if (!in_array($role, array('user', 'assistant', 'system'), true)) {
-            return new WP_Error('invalid_role', 'Role must be user, assistant or system.', array('status' => 400));
+            return new WP_Error('invalid_role', 'Rolle muss user, assistant oder system sein.', array('status' => 400));
         }
 
         $message = $this->chatRepository->addMessage($chatId, (int) get_current_user_id(), $role, $content);
 
         if (!$message) {
-            return new WP_Error('chat_not_found', 'Chat not found.', array('status' => 404));
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response($message);
@@ -133,17 +137,17 @@ class ChatsController
         $promptIdOverride = is_array($payload) ? trim((string) ($payload['prompt_id'] ?? '')) : '';
 
         if (trim($message) === '') {
-            return new WP_Error('invalid_message', 'Message is required.', array('status' => 400));
+            return new WP_Error('invalid_message', 'Nachricht ist erforderlich.', array('status' => 400));
         }
 
         $chat = $this->chatRepository->getChatForUser($chatId, $userId);
         if (!$chat) {
-            return new WP_Error('chat_not_found', 'Chat not found.', array('status' => 404));
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
         }
 
         $savedUserMessage = $this->chatRepository->addMessage($chatId, $userId, 'user', $message);
         if (!$savedUserMessage) {
-            return new WP_Error('save_failed', 'Could not save user message.', array('status' => 500));
+            return new WP_Error('save_failed', 'Benutzernachricht konnte nicht gespeichert werden.', array('status' => 500));
         }
 
         $activeSession = $this->flowSessionRepository->getActiveForChat($chatId, $userId);
@@ -163,12 +167,17 @@ class ChatsController
 
             $flowReply = (string) ($flowResult['assistant_reply'] ?? '');
             if ($flowReply === '') {
-                return new WP_Error('flow_missing_reply', 'Flow turn returned no assistant reply.', array('status' => 500));
+                return new WP_Error('flow_missing_reply', 'Flow-Durchlauf lieferte keine Assistenten-Antwort.', array('status' => 500));
             }
 
-            $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $flowReply);
-            if (!$savedAssistantMessage) {
-                return new WP_Error('save_failed', 'Could not save assistant message.', array('status' => 500));
+            $flowReply = $this->processRoomDirectivesForOutput($chat, $userId, $flowReply);
+
+            $savedAssistantMessage = null;
+            if (trim($flowReply) !== '') {
+                $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $flowReply);
+                if (!$savedAssistantMessage) {
+                    return new WP_Error('save_failed', 'Assistenten-Nachricht konnte nicht gespeichert werden.', array('status' => 500));
+                }
             }
 
             $nextState = isset($flowResult['state']) && is_array($flowResult['state']) ? $flowResult['state'] : array();
@@ -204,12 +213,13 @@ class ChatsController
         $assistantText = (string) ($openAiResult['assistant_text'] ?? '');
         $directive = $this->parseRuleFlowDirective($assistantText);
         $visibleAssistantText = $directive ? $directive['cleaned_text'] : $assistantText;
+        $visibleAssistantText = $this->processRoomDirectivesForOutput($chat, $userId, $visibleAssistantText);
 
         $savedAssistantMessage = null;
         if (trim($visibleAssistantText) !== '') {
             $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $visibleAssistantText);
             if (!$savedAssistantMessage) {
-                return new WP_Error('save_failed', 'Could not save assistant message.', array('status' => 500));
+                return new WP_Error('save_failed', 'Assistenten-Nachricht konnte nicht gespeichert werden.', array('status' => 500));
             }
         }
 
@@ -221,6 +231,7 @@ class ChatsController
                 $createdSession = $this->flowSessionRepository->createOrReplace($chatId, $userId, $flowType, array());
                 if ($createdSession) {
                     $initialPrompt = (string) ($initialResult['initial_prompt'] ?? '');
+                    $initialPrompt = $this->processRoomDirectivesForOutput($chat, $userId, $initialPrompt);
                     if ($initialPrompt !== '') {
                         $savedFlowPrompt = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $initialPrompt);
                         if ($savedFlowPrompt) {
@@ -285,6 +296,99 @@ class ChatsController
             'flow_type' => $flowType,
             'cleaned_text' => $cleanedText,
         );
+    }
+
+    private function processRoomDirectivesForOutput(array $chat, int $userId, string $text): string
+    {
+        $text = $this->normalizeEscapedLineBreaks($text);
+        $roomId = isset($chat['room_id']) ? (int) $chat['room_id'] : 0;
+        $parsed = $this->extractSetDirectives($text);
+        $setAttributes = $parsed['attributes'];
+
+        $effectiveAttributes = array();
+        if ($roomId > 0) {
+            $effectiveAttributes = $this->roomRepository->getCustomAttributesForRoom($roomId, $userId);
+        }
+
+        if (!empty($setAttributes) && $roomId > 0) {
+            $updatedRoom = $this->roomRepository->upsertCustomAttributes($roomId, $userId, $setAttributes);
+            if (is_array($updatedRoom)) {
+                $effectiveAttributes = $this->roomRepository->getCustomAttributesForRoom($roomId, $userId);
+            }
+        }
+
+        return $this->replaceGetDirectives((string) $parsed['cleaned_text'], $effectiveAttributes);
+    }
+
+    private function extractSetDirectives(string $text): array
+    {
+        $pattern = '/\[set\|([^|\]\r\n]+)\|([^\]\r\n]*)\]/i';
+        $attributes = array();
+
+        if (preg_match_all($pattern, $text, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $key = isset($match[1]) ? trim((string) $match[1]) : '';
+                $value = isset($match[2]) ? trim((string) $match[2]) : '';
+                if ($key === '') {
+                    continue;
+                }
+
+                $attributes[$key] = $value;
+            }
+        }
+
+        $cleaned = preg_replace($pattern, '', $text);
+        $cleanedText = is_string($cleaned) ? trim(preg_replace('/\n{3,}/', "\n\n", $cleaned)) : '';
+
+        return array(
+            'cleaned_text' => $cleanedText,
+            'attributes' => $attributes,
+        );
+    }
+
+    private function replaceGetDirectives(string $text, array $attributes): string
+    {
+        $lookup = array();
+        foreach ($attributes as $key => $value) {
+            $normalizedKey = strtolower(trim((string) $key));
+            if ($normalizedKey === '') {
+                continue;
+            }
+
+            $lookup[$normalizedKey] = (string) $value;
+        }
+
+        $pattern = '/\[get\|([^|\]\r\n]+)\]/i';
+        $replaced = preg_replace_callback($pattern, static function (array $match) use ($lookup): string {
+            $rawKey = isset($match[1]) ? trim((string) $match[1]) : '';
+            if ($rawKey === '') {
+                return '';
+            }
+
+            $normalizedKey = strtolower($rawKey);
+            if (!array_key_exists($normalizedKey, $lookup)) {
+                return '';
+            }
+
+            return (string) $lookup[$normalizedKey];
+        }, $text);
+
+        if (!is_string($replaced)) {
+            return '';
+        }
+
+        return trim(preg_replace('/\n{3,}/', "\n\n", $replaced));
+    }
+
+    private function normalizeEscapedLineBreaks(string $text): string
+    {
+        $normalized = str_replace(
+            array('\\r\\n', '\\n', '\\r'),
+            array("\n", "\n", "\n"),
+            $text
+        );
+
+        return str_replace('W&amp;W', 'W&W', $normalized);
     }
 
     public function isLoggedIn(): bool

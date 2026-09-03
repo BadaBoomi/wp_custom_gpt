@@ -37,7 +37,7 @@
         return fetch(WPCGPT_CONFIG.restBase + path, requestOptions).then(function (response) {
             return response.json().then(function (body) {
                 if (!response.ok) {
-                    var message = (body && body.message) || 'Request failed.';
+                    var message = (body && body.message) || 'Anfrage fehlgeschlagen.';
                     throw new Error(message);
                 }
                 return body;
@@ -50,7 +50,7 @@
 
         if (!rooms.length) {
             var empty = document.createElement('li');
-            empty.textContent = 'No rooms yet.';
+            empty.textContent = 'Noch keine Raeume.';
             roomList.appendChild(empty);
             return;
         }
@@ -61,12 +61,12 @@
 
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
-            deleteBtn.textContent = 'Delete';
+            deleteBtn.textContent = 'Loeschen';
             deleteBtn.style.marginLeft = '8px';
             deleteBtn.addEventListener('click', function () {
                 request('/rooms/' + room.id, { method: 'DELETE' })
                     .then(function () {
-                        setStatus('Room deleted.', false);
+                        setStatus('Raum geloescht.', false);
                         loadRooms();
                     })
                     .catch(function (error) {
@@ -78,11 +78,11 @@
 
             var openBtn = document.createElement('button');
             openBtn.type = 'button';
-            openBtn.textContent = 'Open';
+            openBtn.textContent = 'Oeffnen';
             openBtn.style.marginLeft = '8px';
             openBtn.addEventListener('click', function () {
                 selectedRoomId = room.id;
-                setStatus('Selected room: ' + room.name, false);
+                setStatus('Ausgewaehlter Raum: ' + room.name, false);
                 loadChats(room.id);
             });
 
@@ -96,7 +96,7 @@
 
         if (!chats.length) {
             var empty = document.createElement('li');
-            empty.textContent = 'No chats in selected room.';
+            empty.textContent = 'Keine Chats im ausgewaehlten Raum.';
             chatList.appendChild(empty);
             selectedChatId = null;
             messageList.innerHTML = '';
@@ -109,11 +109,11 @@
 
             var openBtn = document.createElement('button');
             openBtn.type = 'button';
-            openBtn.textContent = 'Open Chat';
+            openBtn.textContent = 'Chat oeffnen';
             openBtn.style.marginLeft = '8px';
             openBtn.addEventListener('click', function () {
                 selectedChatId = chat.id;
-                setStatus('Selected chat: ' + chat.title, false);
+                setStatus('Ausgewaehlter Chat: ' + chat.title, false);
                 loadMessages(chat.id);
             });
 
@@ -127,7 +127,7 @@
 
         if (!messages.length) {
             var empty = document.createElement('li');
-            empty.textContent = 'No messages yet.';
+            empty.textContent = 'Noch keine Nachrichten.';
             messageList.appendChild(empty);
             return;
         }
@@ -160,11 +160,11 @@
     }
 
     function loadRooms() {
-        setStatus('Loading rooms...', false);
+        setStatus('Raeume werden geladen...', false);
         request('/rooms', { method: 'GET' })
             .then(function (rooms) {
                 renderRooms(rooms);
-                setStatus('Rooms loaded.', false);
+                setStatus('Raeume geladen.', false);
             })
             .catch(function (error) {
                 setStatus(error.message, true);
@@ -174,7 +174,7 @@
     createBtn.addEventListener('click', function () {
         var name = (nameInput.value || '').trim();
         if (!name) {
-            setStatus('Please enter a room name.', true);
+            setStatus('Bitte einen Raumnamen eingeben.', true);
             return;
         }
 
@@ -184,7 +184,7 @@
         })
             .then(function () {
                 nameInput.value = '';
-                setStatus('Room created.', false);
+                setStatus('Raum erstellt.', false);
                 loadRooms();
             })
             .catch(function (error) {
@@ -196,11 +196,11 @@
 
     createChatBtn.addEventListener('click', function () {
         if (!selectedRoomId) {
-            setStatus('Select a room first.', true);
+            setStatus('Bitte zuerst einen Raum waehlen.', true);
             return;
         }
 
-        var title = (chatTitleInput.value || '').trim() || 'New Chat';
+        var title = (chatTitleInput.value || '').trim() || 'Neuer Chat';
 
         request('/rooms/' + selectedRoomId + '/chats', {
             method: 'POST',
@@ -208,7 +208,7 @@
         })
             .then(function () {
                 chatTitleInput.value = '';
-                setStatus('Chat created.', false);
+                setStatus('Chat erstellt.', false);
                 loadChats(selectedRoomId);
             })
             .catch(function (error) {
@@ -218,17 +218,17 @@
 
     sendMessageBtn.addEventListener('click', function () {
         if (!selectedChatId) {
-            setStatus('Select a chat first.', true);
+            setStatus('Bitte zuerst einen Chat waehlen.', true);
             return;
         }
 
         var message = (messageInput.value || '').trim();
         if (!message) {
-            setStatus('Please enter a message.', true);
+            setStatus('Bitte eine Nachricht eingeben.', true);
             return;
         }
 
-        setStatus('Sending message to OpenAI...', false);
+        setStatus('Nachricht wird gesendet...', false);
 
         request('/chats/' + selectedChatId + '/send', {
             method: 'POST',
@@ -236,7 +236,7 @@
         })
             .then(function () {
                 messageInput.value = '';
-                setStatus('Assistant response saved.', false);
+                setStatus('Antwort wurde gespeichert.', false);
                 loadMessages(selectedChatId);
             })
             .catch(function (error) {

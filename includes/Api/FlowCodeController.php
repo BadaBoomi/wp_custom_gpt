@@ -89,7 +89,7 @@ class FlowCodeController
         $flow = $this->flowRuntimeService->getFlow($flowType);
 
         if (!$flow) {
-            return new WP_Error('flow_not_found', 'Flow not found.', array('status' => 404));
+            return new WP_Error('flow_not_found', 'Flow nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response($flow);
@@ -101,7 +101,7 @@ class FlowCodeController
         $payload = $request->get_json_params();
 
         if (!is_array($payload)) {
-            return new WP_Error('invalid_payload', 'Request body must be JSON.', array('status' => 400));
+            return new WP_Error('invalid_payload', 'Request-Body muss JSON sein.', array('status' => 400));
         }
 
         $codePhp = isset($payload['code_php']) ? (string) $payload['code_php'] : '';
@@ -120,7 +120,7 @@ class FlowCodeController
         $ok = $this->flowRuntimeService->deactivateFlow($flowType, (int) get_current_user_id());
 
         if (!$ok) {
-            return new WP_Error('flow_deactivate_failed', 'Could not deactivate flow.', array('status' => 500));
+            return new WP_Error('flow_deactivate_failed', 'Flow konnte nicht deaktiviert werden.', array('status' => 500));
         }
 
         return rest_ensure_response(array('ok' => true));
@@ -130,7 +130,7 @@ class FlowCodeController
     {
         $payload = $request->get_json_params();
         if (!is_array($payload)) {
-            return new WP_Error('invalid_payload', 'Request body must be JSON.', array('status' => 400));
+            return new WP_Error('invalid_payload', 'Request-Body muss JSON sein.', array('status' => 400));
         }
 
         $codePhp = isset($payload['code_php']) ? (string) $payload['code_php'] : '';
@@ -175,12 +175,12 @@ class FlowCodeController
         $fileId = (int) $request->get_param('fileId');
 
         if ($fileId <= 0) {
-            return new WP_Error('invalid_file_id', 'Invalid file id.', array('status' => 400));
+            return new WP_Error('invalid_file_id', 'Ungueltige Datei-ID.', array('status' => 400));
         }
 
         $deleted = $this->flowFileService->deleteFile($flowType, $fileId);
         if (!$deleted) {
-            return new WP_Error('flow_file_delete_failed', 'Could not delete flow file.', array('status' => 404));
+            return new WP_Error('flow_file_delete_failed', 'Flow-Datei konnte nicht geloescht werden.', array('status' => 404));
         }
 
         return rest_ensure_response(array('ok' => true));
