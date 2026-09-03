@@ -92,6 +92,8 @@ dist/wp-custom-gpt-<version>.zip
 - It excludes local build artifacts and `.git` metadata.
 - Required tool in your shell: `rsync`.
 - Archive creation uses `zip` when available, otherwise falls back to `powershell.exe` with `Compress-Archive`.
+- The archive always contains the same top-level plugin folder name `wp-custom-gpt`.
+- This stable folder name is required so WordPress can replace an existing installation during plugin upload.
 
 ## Next implementation slices
 

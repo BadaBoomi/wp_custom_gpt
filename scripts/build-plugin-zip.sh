@@ -106,9 +106,9 @@ if command -v zip >/dev/null 2>&1; then
     zip -r "${ZIP_FILE}" "${PLUGIN_SLUG}" >/dev/null
   )
 elif command -v powershell.exe >/dev/null 2>&1; then
-  PACKAGE_WIN="$(wslpath -w "${PACKAGE_DIR}")"
+  BUILD_WIN="$(wslpath -w "${BUILD_DIR}")"
   ZIP_WIN="$(wslpath -w "${ZIP_FILE}")"
-  powershell.exe -NoProfile -Command "Compress-Archive -Path '${PACKAGE_WIN}\\*' -DestinationPath '${ZIP_WIN}' -Force" >/dev/null
+  powershell.exe -NoProfile -Command "Compress-Archive -Path '${BUILD_WIN}\\${PLUGIN_SLUG}' -DestinationPath '${ZIP_WIN}' -Force" >/dev/null
 else
   echo "Error: neither 'zip' nor 'powershell.exe' is available for archive creation."
   rm -rf "${BUILD_DIR}"
