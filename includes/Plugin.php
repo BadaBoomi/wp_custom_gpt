@@ -214,7 +214,7 @@ class Plugin
         $html .= '    <h2>Chat</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-messages">Refresh Messages</button>';
         $html .= '  </div>';
-        $html .= '  <ul id="wpcgpt-message-list"></ul>';
+        $html .= '  <div id="wpcgpt-message-output" style="width:100%;max-width:760px;height:360px;overflow-y:auto;border:1px solid #d0d7de;border-radius:8px;padding:12px;background:#ffffff;"></div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Type your message" style="width:100%;max-width:720px;"></textarea>';
         $html .= '  </div>';

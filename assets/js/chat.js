@@ -4,7 +4,7 @@
         return;
     }
 
-    var messageList = document.getElementById('wpcgpt-message-list');
+    var messageOutput = document.getElementById('wpcgpt-message-output');
     var statusEl = document.getElementById('wpcgpt-status');
     var sendMessageBtn = document.getElementById('wpcgpt-send-message');
     var refreshMessagesBtn = document.getElementById('wpcgpt-refresh-messages');
@@ -14,6 +14,8 @@
     var chatId = parseInt(root.getAttribute('data-chat-id') || '0', 10);
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatsPage = root.getAttribute('data-chats-page') || '';
+    var lastMessageCount = 0;
+    var shouldStickToBottom = true;
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
@@ -41,21 +43,53 @@
         });
     }
 
+    function isNearBottom() {
+        var threshold = 16;
+        return messageOutput.scrollHeight - messageOutput.scrollTop - messageOutput.clientHeight <= threshold;
+    }
+
     function renderMessages(messages) {
-        messageList.innerHTML = '';
+        var hasNewMessages = messages.length > lastMessageCount;
+        var shouldAutoScroll = hasNewMessages && shouldStickToBottom;
+
+        messageOutput.innerHTML = '';
 
         if (!messages.length) {
-            var empty = document.createElement('li');
+            var empty = document.createElement('div');
             empty.textContent = 'No messages yet.';
-            messageList.appendChild(empty);
+            empty.style.color = '#6a737d';
+            messageOutput.appendChild(empty);
+            lastMessageCount = 0;
+            shouldStickToBottom = true;
             return;
         }
 
         messages.forEach(function (message) {
-            var li = document.createElement('li');
-            li.textContent = message.role + ': ' + message.content;
-            messageList.appendChild(li);
+            var wrapper = document.createElement('div');
+            wrapper.style.marginBottom = '10px';
+
+            var role = document.createElement('div');
+            role.textContent = String(message.role || '').toUpperCase();
+            role.style.fontWeight = '600';
+            role.style.fontSize = '12px';
+            role.style.color = message.role === 'assistant' ? '#0a58ca' : '#1f2328';
+
+            var content = document.createElement('div');
+            content.textContent = message.content || '';
+            content.style.whiteSpace = 'pre-wrap';
+            content.style.lineHeight = '1.45';
+            content.style.padding = '6px 0';
+
+            wrapper.appendChild(role);
+            wrapper.appendChild(content);
+            messageOutput.appendChild(wrapper);
         });
+
+        if (shouldAutoScroll) {
+            messageOutput.scrollTop = messageOutput.scrollHeight;
+        }
+
+        lastMessageCount = messages.length;
     }
 
     function loadMessages() {
@@ -107,6 +141,9 @@
 
     refreshMessagesBtn.addEventListener('click', loadMessages);
     backChatsLink.addEventListener('click', goBackToChats);
+    messageOutput.addEventListener('scroll', function () {
+        shouldStickToBottom = isNearBottom();
+    });
 
     loadMessages();
 })();
