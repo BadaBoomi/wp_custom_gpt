@@ -123,6 +123,30 @@ class ChatRepository
         return $row ? $this->normalizeMessage($row) : null;
     }
 
+    public function getChatForUser(int $chatId, int $userId): ?array
+    {
+        return $this->findChatForUser($chatId, $userId);
+    }
+
+    public function updateConversationId(int $chatId, int $userId, string $conversationId): bool
+    {
+        $updated = $this->wpdb->update(
+            $this->chatsTable,
+            array(
+                'conversation_id' => sanitize_text_field($conversationId),
+                'updated_at' => current_time('mysql', true),
+            ),
+            array(
+                'id' => $chatId,
+                'user_id' => $userId,
+            ),
+            array('%s', '%s'),
+            array('%d', '%d')
+        );
+
+        return $updated !== false;
+    }
+
     private function roomExistsForUser(int $roomId, int $userId): bool
     {
         $sql = $this->wpdb->prepare(

@@ -105,12 +105,29 @@ if command -v zip >/dev/null 2>&1; then
     cd "${BUILD_DIR}"
     zip -r "${ZIP_FILE}" "${PLUGIN_SLUG}" >/dev/null
   )
+elif command -v python3 >/dev/null 2>&1; then
+  python3 - <<PY
+import os
+import zipfile
+
+package_dir = r"${PACKAGE_DIR}"
+zip_file = r"${ZIP_FILE}"
+plugin_slug = r"${PLUGIN_SLUG}"
+
+with zipfile.ZipFile(zip_file, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+    for root, _, files in os.walk(package_dir):
+        for name in files:
+            full_path = os.path.join(root, name)
+            rel_path = os.path.relpath(full_path, package_dir).replace(os.sep, "/")
+            arcname = f"{plugin_slug}/{rel_path}"
+            zf.write(full_path, arcname)
+PY
 elif command -v powershell.exe >/dev/null 2>&1; then
   BUILD_WIN="$(wslpath -w "${BUILD_DIR}")"
   ZIP_WIN="$(wslpath -w "${ZIP_FILE}")"
   powershell.exe -NoProfile -Command "Compress-Archive -Path '${BUILD_WIN}\\${PLUGIN_SLUG}' -DestinationPath '${ZIP_WIN}' -Force" >/dev/null
 else
-  echo "Error: neither 'zip' nor 'powershell.exe' is available for archive creation."
+  echo "Error: no archiver found. Install 'zip' or 'python3'."
   rm -rf "${BUILD_DIR}"
   exit 1
 fi

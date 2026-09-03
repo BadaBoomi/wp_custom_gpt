@@ -47,6 +47,16 @@ class SettingsService
         return $this->getSettingsForAdmin();
     }
 
+    public function getRuntimeSettings(): array
+    {
+        return array(
+            'api_key' => (string) get_option(self::OPTION_API_KEY, ''),
+            'prompt_id' => (string) get_option(self::OPTION_PROMPT_ID, ''),
+            'vector_store_ids' => (string) get_option(self::OPTION_VECTOR_STORE_IDS, ''),
+            'user_email' => (string) get_option(self::OPTION_USER_EMAIL, ''),
+        );
+    }
+
     private function maskApiKey(string $apiKey): string
     {
         if ($apiKey === '') {

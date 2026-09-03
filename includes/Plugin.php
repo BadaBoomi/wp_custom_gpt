@@ -8,11 +8,14 @@ use WpCustomGpt\Api\SettingsController;
 use WpCustomGpt\Database\MigrationRunner;
 use WpCustomGpt\Repositories\ChatRepository;
 use WpCustomGpt\Repositories\RoomRepository;
+use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
 
 class Plugin
 {
-    private const SCRIPT_HANDLE = 'wpcgpt-frontend';
+    private const ROOMS_SCRIPT_HANDLE = 'wpcgpt-rooms-frontend';
+    private const CHATS_SCRIPT_HANDLE = 'wpcgpt-chats-frontend';
+    private const CHAT_SCRIPT_HANDLE = 'wpcgpt-chat-frontend';
     private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
 
     public static function activate(): void
@@ -24,19 +27,23 @@ class Plugin
     {
         add_action('rest_api_init', array($this, 'registerRestRoutes'));
         add_action('wp_enqueue_scripts', array($this, 'registerAssets'));
-        add_shortcode('wp_custom_gpt', array($this, 'renderShortcode'));
+        add_shortcode('wp_custom_gpt', array($this, 'renderRoomsShortcode'));
+        add_shortcode('wp_custom_gpt_rooms', array($this, 'renderRoomsShortcode'));
+        add_shortcode('wp_custom_gpt_chats', array($this, 'renderChatsShortcode'));
+        add_shortcode('wp_custom_gpt_chat', array($this, 'renderChatShortcode'));
         add_shortcode('wp_custom_gpt_settings', array($this, 'renderSettingsShortcode'));
     }
 
     public function registerRestRoutes(): void
     {
         $settingsService = new SettingsService();
+        $openAiService = new OpenAiService($settingsService);
         $roomRepository = new RoomRepository();
         $chatRepository = new ChatRepository();
 
         $settingsController = new SettingsController($settingsService);
         $roomsController = new RoomsController($roomRepository);
-        $chatsController = new ChatsController($chatRepository);
+        $chatsController = new ChatsController($chatRepository, $openAiService);
 
         $settingsController->registerRoutes();
         $roomsController->registerRoutes();
@@ -57,8 +64,24 @@ class Plugin
     public function registerAssets(): void
     {
         wp_register_script(
-            self::SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/app.js',
+            self::ROOMS_SCRIPT_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/js/rooms.js',
+            array(),
+            WPCGPT_PLUGIN_VERSION,
+            true
+        );
+
+        wp_register_script(
+            self::CHATS_SCRIPT_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/js/chats.js',
+            array(),
+            WPCGPT_PLUGIN_VERSION,
+            true
+        );
+
+        wp_register_script(
+            self::CHAT_SCRIPT_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/js/chat.js',
             array(),
             WPCGPT_PLUGIN_VERSION,
             true
@@ -72,7 +95,17 @@ class Plugin
             true
         );
 
-        wp_localize_script(self::SCRIPT_HANDLE, 'WPCGPT_CONFIG', array(
+        wp_localize_script(self::ROOMS_SCRIPT_HANDLE, 'WPCGPT_ROOMS_CONFIG', array(
+            'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ));
+
+        wp_localize_script(self::CHATS_SCRIPT_HANDLE, 'WPCGPT_CHATS_CONFIG', array(
+            'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ));
+
+        wp_localize_script(self::CHAT_SCRIPT_HANDLE, 'WPCGPT_CHAT_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
         ));
@@ -83,18 +116,24 @@ class Plugin
         ));
     }
 
-    public function renderShortcode(): string
+    public function renderRoomsShortcode($atts = array()): string
     {
         if (!is_user_logged_in()) {
             return '<p>Please log in to use WP Custom GPT.</p>';
         }
 
-        wp_enqueue_script(self::SCRIPT_HANDLE);
+        $atts = shortcode_atts(array(
+            'chats_page' => '',
+        ), $atts, 'wp_custom_gpt_rooms');
+
+        $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
+
+        wp_enqueue_script(self::ROOMS_SCRIPT_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-app" class="wpcgpt-app">';
+        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" data-chats-page="' . esc_attr($chatsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
-        $html .= '    <h2>WP Custom GPT</h2>';
+        $html .= '    <h2>Room Management</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh">Refresh Rooms</button>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
@@ -102,12 +141,87 @@ class Plugin
         $html .= '    <button type="button" id="wpcgpt-create-room">Create Room</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-room-list"></ul>';
-        $html .= '  <h3>Chats</h3>';
+        $html .= '  <p id="wpcgpt-room-hint">Use shortcode attribute chats_page to define where users land when entering a room.</p>';
+        $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    public function renderChatsShortcode($atts = array()): string
+    {
+        if (!is_user_logged_in()) {
+            return '<p>Please log in to use WP Custom GPT.</p>';
+        }
+
+        $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
+        if ($roomId <= 0) {
+            return '<p>Missing room_id in URL. Open this page from room management.</p>';
+        }
+
+        $atts = shortcode_atts(array(
+            'rooms_page' => '',
+            'chat_page' => '',
+        ), $atts, 'wp_custom_gpt_chats');
+
+        $roomsPage = $this->resolvePageUrl((string) $atts['rooms_page']);
+        $chatPage = $this->resolvePageUrl((string) $atts['chat_page']);
+
+        wp_enqueue_script(self::CHATS_SCRIPT_HANDLE);
+
+        $html = '';
+        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '">';
+        $html .= '  <div class="wpcgpt-header">';
+        $html .= '    <h2>Chat Management</h2>';
+        $html .= '    <button type="button" id="wpcgpt-refresh-chats">Refresh Chats</button>';
+        $html .= '  </div>';
+        $html .= '  <p id="wpcgpt-room-label"></p>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <input id="wpcgpt-chat-title" type="text" maxlength="120" placeholder="New chat title" />';
         $html .= '    <button type="button" id="wpcgpt-create-chat">Create Chat</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-chat-list"></ul>';
+        $html .= '  <p><a id="wpcgpt-back-rooms" href="#">Back to Rooms</a></p>';
+        $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    public function renderChatShortcode($atts = array()): string
+    {
+        if (!is_user_logged_in()) {
+            return '<p>Please log in to use WP Custom GPT.</p>';
+        }
+
+        $chatId = isset($_GET['chat_id']) ? absint($_GET['chat_id']) : 0;
+        $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
+        if ($chatId <= 0) {
+            return '<p>Missing chat_id in URL. Open this page from chat management.</p>';
+        }
+
+        $atts = shortcode_atts(array(
+            'chats_page' => '',
+        ), $atts, 'wp_custom_gpt_chat');
+
+        $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
+
+        wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
+
+        $html = '';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
+        $html .= '  <div class="wpcgpt-header">';
+        $html .= '    <h2>Chat</h2>';
+        $html .= '    <button type="button" id="wpcgpt-refresh-messages">Refresh Messages</button>';
+        $html .= '  </div>';
+        $html .= '  <ul id="wpcgpt-message-list"></ul>';
+        $html .= '  <div class="wpcgpt-create">';
+        $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Type your message" style="width:100%;max-width:720px;"></textarea>';
+        $html .= '  </div>';
+        $html .= '  <div class="wpcgpt-create">';
+        $html .= '    <button type="button" id="wpcgpt-send-message">Send to OpenAI</button>';
+        $html .= '  </div>';
+        $html .= '  <p><a id="wpcgpt-back-chats" href="#">Back to Chats</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -141,5 +255,40 @@ class Plugin
         $html .= '</div>';
 
         return $html;
+    }
+
+    private function resolvePageUrl(string $target): string
+    {
+        $target = trim($target);
+        if ($target === '') {
+            return '';
+        }
+
+        if (ctype_digit($target)) {
+            $url = get_permalink((int) $target);
+            return $url ? esc_url_raw($url) : '';
+        }
+
+        if (filter_var($target, FILTER_VALIDATE_URL)) {
+            return esc_url_raw($target);
+        }
+
+        $path = trim($target, "/ \t\n\r\0\x0B");
+
+        if ($path !== '') {
+            $page = get_page_by_path($path, OBJECT, 'page');
+            if ($page && isset($page->ID)) {
+                $url = get_permalink((int) $page->ID);
+                if ($url) {
+                    return esc_url_raw($url);
+                }
+            }
+        }
+
+        if ($target[0] !== '/') {
+            $target = '/' . $target;
+        }
+
+        return esc_url_raw(home_url($target));
     }
 }

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Custom GPT
  * Description: Brings core features from pwa_custom_gpt into WordPress.
- * Version: 0.2.1
+ * Version: 0.3.4
  * Author: Heiko
  */
 
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('WPCGPT_PLUGIN_VERSION')) {
-    define('WPCGPT_PLUGIN_VERSION', '0.2.1');
+    define('WPCGPT_PLUGIN_VERSION', '0.3.4');
 }
 
 if (!defined('WPCGPT_PLUGIN_FILE')) {
@@ -28,6 +28,7 @@ if (!defined('WPCGPT_PLUGIN_URL')) {
 
 require_once WPCGPT_PLUGIN_DIR . 'includes/Database/MigrationRunner.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/SettingsService.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Services/OpenAiService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/RoomRepository.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Repositories/ChatRepository.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Api/SettingsController.php';
