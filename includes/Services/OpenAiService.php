@@ -15,7 +15,7 @@ class OpenAiService
         $this->settingsService = $settingsService;
     }
 
-    public function createAssistantReply(array $messages, ?string $promptIdOverride = null): array|WP_Error
+    public function createAssistantReply(array $messages, ?string $promptIdOverride = null, array $requestContext = array()): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
@@ -24,9 +24,28 @@ class OpenAiService
             return new WP_Error('missing_api_key', 'OpenAI API-Key ist nicht konfiguriert.', array('status' => 400));
         }
 
-        $payload = array(
-            'input' => $this->mapMessagesToInput($messages),
+        $input = $this->mapMessagesToInput($messages);
+        $normalizedAttributes = $this->normalizeAttributesForContext(
+            isset($requestContext['room_attributes']) && is_array($requestContext['room_attributes'])
+                ? $requestContext['room_attributes']
+                : array()
         );
+        $contextMessage = $this->buildAttributesContextMessage($normalizedAttributes);
+        if ($contextMessage !== '') {
+            array_unshift($input, array(
+                'role' => 'system',
+                'content' => $contextMessage,
+            ));
+        }
+
+        $payload = array(
+            'input' => $input,
+        );
+
+        $metadata = $this->buildRequestMetadata($requestContext, $normalizedAttributes);
+        if (!empty($metadata)) {
+            $payload['metadata'] = $metadata;
+        }
 
         $promptId = $promptIdOverride !== null && trim($promptIdOverride) !== ''
             ? trim($promptIdOverride)
@@ -48,36 +67,9 @@ class OpenAiService
             );
         }
 
-        $headers = array(
-            'Authorization' => 'Bearer ' . $apiKey,
-            'Content-Type' => 'application/json',
-        );
-
-        $userEmail = (string) ($runtime['user_email'] ?? '');
-        if ($userEmail !== '') {
-            $headers['user-id'] = $userEmail;
-        }
-
-        $response = wp_remote_post(self::API_BASE . '/responses', array(
-            'headers' => $headers,
-            'body' => wp_json_encode($payload),
-            'timeout' => 45,
-        ));
-
-        if (is_wp_error($response)) {
-            return new WP_Error('openai_request_failed', $response->get_error_message(), array('status' => 502));
-        }
-
-        $statusCode = (int) wp_remote_retrieve_response_code($response);
-        $body = json_decode((string) wp_remote_retrieve_body($response), true);
-
-        if ($statusCode >= 400) {
-            $message = 'OpenAI-Anfrage fehlgeschlagen.';
-            if (is_array($body) && isset($body['error']['message'])) {
-                $message = (string) $body['error']['message'];
-            }
-
-            return new WP_Error('openai_http_error', $message, array('status' => $statusCode));
+        $body = $this->requestResponsesApi($payload);
+        if (is_wp_error($body)) {
+            return $body;
         }
 
         $assistantText = $this->extractAssistantText($body);
@@ -148,6 +140,63 @@ class OpenAiService
         }
 
         return $input;
+    }
+
+    private function normalizeAttributesForContext(array $attributes): array
+    {
+        $normalized = array();
+
+        foreach ($attributes as $key => $value) {
+            $cleanKey = trim(sanitize_text_field((string) $key));
+            $cleanValue = trim(sanitize_text_field((string) $value));
+
+            if ($cleanKey === '' || $cleanValue === '') {
+                continue;
+            }
+
+            $normalized[substr($cleanKey, 0, 80)] = substr($cleanValue, 0, 200);
+        }
+
+        uksort($normalized, 'strnatcasecmp');
+        return $normalized;
+    }
+
+    private function buildAttributesContextMessage(array $attributes): string
+    {
+        if (empty($attributes)) {
+            return '';
+        }
+
+        $lines = array('Beantworte die Anfrage im folgenden Kontext:');
+        foreach ($attributes as $key => $value) {
+            $lines[] = $key . ': ' . $value;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function buildRequestMetadata(array $requestContext, array $normalizedAttributes): array
+    {
+        $metadata = array();
+
+        $chatId = isset($requestContext['chat_id']) ? (int) $requestContext['chat_id'] : 0;
+        if ($chatId > 0) {
+            $metadata['chat_id'] = (string) $chatId;
+        }
+
+        $roomId = isset($requestContext['room_id']) ? (int) $requestContext['room_id'] : 0;
+        if ($roomId > 0) {
+            $metadata['room_id'] = (string) $roomId;
+        }
+
+        if (!empty($normalizedAttributes)) {
+            $encodedAttributes = wp_json_encode($normalizedAttributes);
+            if (is_string($encodedAttributes) && $encodedAttributes !== '') {
+                $metadata['room_attributes'] = $encodedAttributes;
+            }
+        }
+
+        return $metadata;
     }
 
     private function buildTools(string $vectorStoreIdsValue): array

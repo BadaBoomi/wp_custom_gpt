@@ -201,9 +201,11 @@ class ChatsController
         }
 
         $history = $this->chatRepository->listMessagesForChat($chatId, $userId);
+        $openAiRequestContext = $this->buildOpenAiRequestContext($chat, $chatId, $userId);
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
-            $promptIdOverride !== '' ? $promptIdOverride : null
+            $promptIdOverride !== '' ? $promptIdOverride : null,
+            $openAiRequestContext
         );
 
         if (is_wp_error($openAiResult)) {
@@ -389,6 +391,22 @@ class ChatsController
         );
 
         return str_replace('W&amp;W', 'W&W', $normalized);
+    }
+
+    private function buildOpenAiRequestContext(array $chat, int $chatId, int $userId): array
+    {
+        $roomId = isset($chat['room_id']) ? (int) $chat['room_id'] : 0;
+        $roomAttributes = array();
+
+        if ($roomId > 0) {
+            $roomAttributes = $this->roomRepository->getCustomAttributesForRoom($roomId, $userId);
+        }
+
+        return array(
+            'chat_id' => $chatId,
+            'room_id' => $roomId > 0 ? $roomId : null,
+            'room_attributes' => is_array($roomAttributes) ? $roomAttributes : array(),
+        );
     }
 
     public function isLoggedIn(): bool
