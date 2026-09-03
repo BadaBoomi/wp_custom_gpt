@@ -11,6 +11,7 @@
     var refreshMessagesBtn = document.getElementById('wpcgpt-refresh-messages');
     var backChatsLink = document.getElementById('wpcgpt-back-chats');
     var messageInput = document.getElementById('wpcgpt-message-input');
+    var roomLabelEl = document.getElementById('wpcgpt-room-label');
 
     var chatId = parseInt(root.getAttribute('data-chat-id') || '0', 10);
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
@@ -237,6 +238,34 @@
             });
     }
 
+    function loadRoomLabel() {
+        if (!roomLabelEl || !roomId) {
+            return;
+        }
+
+        request('/rooms', { method: 'GET' })
+            .then(function (rooms) {
+                if (!Array.isArray(rooms)) {
+                    roomLabelEl.textContent = 'Room: #' + String(roomId);
+                    return;
+                }
+
+                var room = rooms.find(function (entry) {
+                    return Number(entry && entry.id) === roomId;
+                });
+
+                if (room && room.name) {
+                    roomLabelEl.textContent = 'Room: ' + String(room.name);
+                    return;
+                }
+
+                roomLabelEl.textContent = 'Room: #' + String(roomId);
+            })
+            .catch(function () {
+                roomLabelEl.textContent = 'Room: #' + String(roomId);
+            });
+    }
+
     function goBackToChats(event) {
         event.preventDefault();
 
@@ -281,5 +310,6 @@
         shouldStickToBottom = isNearBottom();
     });
 
+    loadRoomLabel();
     loadMessages();
 })();
