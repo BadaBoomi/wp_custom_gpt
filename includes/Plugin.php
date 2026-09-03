@@ -184,6 +184,9 @@ class Plugin
         echo '    <p><label for="wpcgpt-flow-type"><strong>Flow-Typ</strong></label><br />';
         echo '    <input id="wpcgpt-flow-type" type="text" placeholder="collect_contact" style="width:100%;max-width:360px;" /></p>';
         echo '    <p><button type="button" id="wpcgpt-flow-load" class="button">Laden</button> <button type="button" id="wpcgpt-flow-list" class="button">Auflisten</button> <button type="button" id="wpcgpt-flow-template" class="button">Vorlage einfuegen</button></p>';
+        echo '    <p><label><input id="wpcgpt-openai-debug-enabled" type="checkbox" /> OpenAI-Debug-Protokoll aktivieren (Request/Response im Server-Log)</label> <button type="button" id="wpcgpt-openai-debug-save" class="button">Debug-Einstellung speichern</button></p>';
+        echo '    <p><button type="button" id="wpcgpt-openai-debug-load" class="button">OpenAI-Debug-Log laden</button></p>';
+        echo '    <pre id="wpcgpt-openai-debug-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:260px;overflow:auto;"></pre>';
         echo '    <p><label for="wpcgpt-flow-code"><strong>Flow-PHP-Code (Funktionsinhalt, ohne &lt;?php-Tag)</strong></label><br />';
         echo '    <textarea id="wpcgpt-flow-code" rows="20" style="width:100%;font-family:Consolas,Monaco,monospace;"></textarea></p>';
         echo '    <p><button type="button" id="wpcgpt-flow-validate" class="button button-secondary">Validieren</button> <button type="button" id="wpcgpt-flow-save" class="button button-primary">Aktive Version speichern</button> <button type="button" id="wpcgpt-flow-deactivate" class="button">Deaktivieren</button></p>';

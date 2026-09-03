@@ -218,6 +218,7 @@ class OpenAiService
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
+        $debugEnabled = !empty($runtime['openai_debug_enabled']);
 
         if ($apiKey === '') {
             return new WP_Error('missing_api_key', 'OpenAI API-Key ist nicht konfiguriert.', array('status' => 400));
@@ -233,6 +234,14 @@ class OpenAiService
             $headers['user-id'] = $userEmail;
         }
 
+        if ($debugEnabled) {
+            $this->logOpenAiDebug('request', array(
+                'url' => self::API_BASE . '/responses',
+                'headers' => $this->maskHeadersForLogging($headers),
+                'payload' => $payload,
+            ));
+        }
+
         $response = wp_remote_post(self::API_BASE . '/responses', array(
             'headers' => $headers,
             'body' => wp_json_encode($payload),
@@ -240,11 +249,23 @@ class OpenAiService
         ));
 
         if (is_wp_error($response)) {
+            if ($debugEnabled) {
+                $this->logOpenAiDebug('transport_error', array(
+                    'message' => $response->get_error_message(),
+                ));
+            }
             return new WP_Error('openai_request_failed', $response->get_error_message(), array('status' => 502));
         }
 
         $statusCode = (int) wp_remote_retrieve_response_code($response);
         $body = json_decode((string) wp_remote_retrieve_body($response), true);
+
+        if ($debugEnabled) {
+            $this->logOpenAiDebug('response', array(
+                'status_code' => $statusCode,
+                'body' => is_array($body) ? $body : array('raw' => (string) wp_remote_retrieve_body($response)),
+            ));
+        }
 
         if ($statusCode >= 400) {
             $message = 'OpenAI-Anfrage fehlgeschlagen.';
@@ -256,6 +277,61 @@ class OpenAiService
         }
 
         return is_array($body) ? $body : array();
+    }
+
+    private function maskHeadersForLogging(array $headers): array
+    {
+        $masked = $headers;
+        foreach ($masked as $key => $value) {
+            if (strtolower((string) $key) === 'authorization') {
+                $masked[$key] = 'Bearer ***';
+            }
+        }
+        return $masked;
+    }
+
+    private function logOpenAiDebug(string $event, array $payload): void
+    {
+        $encoded = wp_json_encode($payload);
+        if (!is_string($encoded)) {
+            $encoded = '{"error":"json_encode_failed"}';
+        }
+
+        error_log('WPCGPT OpenAI Debug [' . $event . '] ' . $encoded);
+
+        $logPath = $this->getPluginDebugLogPath();
+        if ($logPath === '') {
+            return;
+        }
+
+        $dir = dirname($logPath);
+        if (!is_dir($dir)) {
+            wp_mkdir_p($dir);
+        }
+
+        if (!is_dir($dir) || !is_writable($dir)) {
+            return;
+        }
+
+        $line = '[' . gmdate('c') . '] WPCGPT OpenAI Debug [' . $event . '] ' . $encoded . PHP_EOL;
+        @file_put_contents($logPath, $line, FILE_APPEND | LOCK_EX);
+    }
+
+    private function getPluginDebugLogPath(): string
+    {
+        if (function_exists('wp_upload_dir')) {
+            $uploads = wp_upload_dir();
+            $baseDir = isset($uploads['basedir']) && is_string($uploads['basedir']) ? trim($uploads['basedir']) : '';
+            if ($baseDir !== '') {
+                return rtrim($baseDir, '/\\') . '/custom_gpt/openai-debug.log';
+            }
+        }
+
+        if (defined('WP_CONTENT_DIR')) {
+            return rtrim((string) WP_CONTENT_DIR, '/\\') . '/uploads/custom_gpt/openai-debug.log';
+        }
+
+        return '';
     }
 
     private function parseVectorStoreIds(string $value): array

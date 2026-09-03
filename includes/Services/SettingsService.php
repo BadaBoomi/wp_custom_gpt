@@ -9,6 +9,7 @@ class SettingsService
     private const OPTION_VECTOR_STORE_IDS = 'wpcgpt_vector_store_ids';
     private const OPTION_USER_EMAIL = 'wpcgpt_user_email';
     private const OPTION_STARTERS = 'wpcgpt_starters';
+    private const OPTION_OPENAI_DEBUG_ENABLED = 'wpcgpt_openai_debug_enabled';
 
     public function getSettingsForAdmin(): array
     {
@@ -19,6 +20,7 @@ class SettingsService
             'vector_store_ids' => (string) get_option(self::OPTION_VECTOR_STORE_IDS, ''),
             'user_email' => (string) get_option(self::OPTION_USER_EMAIL, ''),
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
+            'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
             'configuration_entries' => $this->getConfigurationEntries(),
             'has_api_key' => $apiKey !== '',
             'api_key_masked' => $this->maskApiKey($apiKey),
@@ -51,6 +53,11 @@ class SettingsService
             update_option(self::OPTION_STARTERS, (string) $payload['starters'], false);
         }
 
+        if (array_key_exists('openai_debug_enabled', $payload)) {
+            $enabled = $this->toBool($payload['openai_debug_enabled']) ? '1' : '0';
+            update_option(self::OPTION_OPENAI_DEBUG_ENABLED, $enabled, false);
+        }
+
         return $this->getSettingsForAdmin();
     }
 
@@ -62,6 +69,7 @@ class SettingsService
             'vector_store_ids' => (string) get_option(self::OPTION_VECTOR_STORE_IDS, ''),
             'user_email' => (string) get_option(self::OPTION_USER_EMAIL, ''),
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
+            'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
         );
     }
 
@@ -228,5 +236,19 @@ class SettingsService
         $suffix = substr($apiKey, -4);
 
         return $prefix . str_repeat('*', max(0, strlen($apiKey) - 8)) . $suffix;
+    }
+
+    private function toBool($value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
+        }
+
+        $normalized = strtolower(trim((string) $value));
+        return $normalized === '1' || $normalized === 'true' || $normalized === 'yes' || $normalized === 'on';
     }
 }

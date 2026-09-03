@@ -10,6 +10,8 @@
     const filesOutput = document.getElementById("wpcgpt-flow-files-output");
     const fileInput = document.getElementById("wpcgpt-flow-file-input");
     const fileDeleteIdInput = document.getElementById("wpcgpt-flow-file-delete-id");
+    const openAiDebugEnabledInput = document.getElementById("wpcgpt-openai-debug-enabled");
+    const openAiDebugOutput = document.getElementById("wpcgpt-openai-debug-output");
 
     const loadButton = document.getElementById("wpcgpt-flow-load");
     const listButton = document.getElementById("wpcgpt-flow-list");
@@ -20,6 +22,8 @@
     const fileUploadButton = document.getElementById("wpcgpt-flow-file-upload");
     const fileRefreshButton = document.getElementById("wpcgpt-flow-file-refresh");
     const fileDeleteButton = document.getElementById("wpcgpt-flow-file-delete");
+    const openAiDebugSaveButton = document.getElementById("wpcgpt-openai-debug-save");
+    const openAiDebugLoadButton = document.getElementById("wpcgpt-openai-debug-load");
 
     function setStatus(message, isError) {
         if (!statusEl) {
@@ -240,6 +244,54 @@
         await refreshFlowFiles();
     }
 
+    async function loadDebugSetting() {
+        if (!openAiDebugEnabledInput) {
+            return;
+        }
+
+        const data = await request("/settings", "GET");
+        openAiDebugEnabledInput.checked = !!(data && data.openai_debug_enabled);
+    }
+
+    async function saveDebugSetting() {
+        if (!openAiDebugEnabledInput) {
+            throw new Error("Debug-Schalter ist nicht verfuegbar.");
+        }
+
+        await request("/settings", "POST", {
+            openai_debug_enabled: openAiDebugEnabledInput.checked,
+        });
+
+        setStatus(
+            openAiDebugEnabledInput.checked
+                ? "OpenAI-Debug-Protokoll wurde aktiviert."
+                : "OpenAI-Debug-Protokoll wurde deaktiviert.",
+            false
+        );
+    }
+
+    async function loadDebugLog() {
+        if (!openAiDebugOutput) {
+            throw new Error("Log-Ausgabe ist nicht verfuegbar.");
+        }
+
+        const data = await request("/settings/openai-debug-log?limit=300", "GET");
+        const lines = Array.isArray(data && data.lines) ? data.lines : [];
+        const path = data && data.path ? String(data.path) : "";
+
+        if (lines.length === 0) {
+            openAiDebugOutput.textContent = data && data.message
+                ? String(data.message)
+                : "Keine OpenAI-Debug-Eintraege gefunden.";
+            setStatus("Keine OpenAI-Debug-Eintraege gefunden.", false);
+            return;
+        }
+
+        const header = path ? "Log-Datei: " + path + "\n\n" : "";
+        openAiDebugOutput.textContent = header + lines.join("\n");
+        setStatus("OpenAI-Debug-Log geladen (" + String(lines.length) + " Zeilen).", false);
+    }
+
     function bind(button, action) {
         if (!button) {
             return;
@@ -263,6 +315,8 @@
     bind(fileUploadButton, uploadFlowFile);
     bind(fileRefreshButton, refreshFlowFiles);
     bind(fileDeleteButton, deleteFlowFile);
+    bind(openAiDebugSaveButton, saveDebugSetting);
+    bind(openAiDebugLoadButton, loadDebugLog);
 
     if (templateButton) {
         templateButton.addEventListener("click", function () {
@@ -270,4 +324,8 @@
             setStatus("Vorlage eingefuegt.", false);
         });
     }
+
+    loadDebugSetting().catch(function (error) {
+        setStatus(error instanceof Error ? error.message : "Debug-Einstellung konnte nicht geladen werden.", true);
+    });
 })();

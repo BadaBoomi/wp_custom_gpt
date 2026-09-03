@@ -42,6 +42,14 @@ class SettingsController
                 'permission_callback' => array($this, 'canManageSettings'),
             ),
         ));
+
+        register_rest_route(self::NAMESPACE, '/settings/openai-debug-log', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getOpenAiDebugLog'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
     }
 
     public function getSettings(): array
@@ -75,6 +83,143 @@ class SettingsController
         $this->settingsService->saveConfigurationRows($rows);
 
         return $this->settingsService->getSettingsForAdmin();
+    }
+
+    public function getOpenAiDebugLog(WP_REST_Request $request)
+    {
+        $limit = (int) $request->get_param('limit');
+        if ($limit <= 0) {
+            $limit = 200;
+        }
+        if ($limit > 2000) {
+            $limit = 2000;
+        }
+
+        $candidates = $this->resolveDebugLogCandidates();
+        $logPath = $this->resolveReadableDebugLogPath($candidates);
+        if ($logPath === '') {
+            return rest_ensure_response(array(
+                'path' => '',
+                'candidates' => $candidates,
+                'lines' => array(),
+                'message' => 'Keine lesbare Log-Datei gefunden. Der Logger schreibt zusaetzlich nach uploads/custom_gpt/openai-debug.log, sobald neue OpenAI-Requests ausgefuehrt werden.',
+            ));
+        }
+
+        $tail = $this->readTailLines($logPath, 5000);
+        $filtered = array_values(array_filter($tail, static function (string $line): bool {
+            return strpos($line, 'WPCGPT OpenAI Debug [') !== false;
+        }));
+
+        if (count($filtered) > $limit) {
+            $filtered = array_slice($filtered, -$limit);
+        }
+
+        return rest_ensure_response(array(
+            'path' => $logPath,
+            'candidates' => $candidates,
+            'lines' => $filtered,
+            'total' => count($filtered),
+        ));
+    }
+
+    private function resolveDebugLogCandidates(): array
+    {
+        $candidates = array();
+
+        if (function_exists('wp_upload_dir')) {
+            $uploads = wp_upload_dir();
+            $baseDir = isset($uploads['basedir']) && is_string($uploads['basedir']) ? trim($uploads['basedir']) : '';
+            if ($baseDir !== '') {
+                $candidates[] = rtrim($baseDir, '/\\') . '/custom_gpt/openai-debug.log';
+            }
+        }
+
+        if (defined('WP_CONTENT_DIR')) {
+            $candidates[] = rtrim((string) WP_CONTENT_DIR, '/\\') . '/uploads/custom_gpt/openai-debug.log';
+        }
+
+        if (defined('WP_DEBUG_LOG')) {
+            if (is_string(WP_DEBUG_LOG) && WP_DEBUG_LOG !== '') {
+                $candidates[] = WP_DEBUG_LOG;
+            }
+
+            if (WP_DEBUG_LOG === true && defined('WP_CONTENT_DIR')) {
+                $candidates[] = rtrim((string) WP_CONTENT_DIR, '/\\') . '/debug.log';
+            }
+        }
+
+        $phpErrorLog = ini_get('error_log');
+        if (is_string($phpErrorLog) && trim($phpErrorLog) !== '') {
+            $candidates[] = trim($phpErrorLog);
+        }
+
+        $normalized = array_values(array_unique(array_filter(array_map('trim', $candidates), static function (string $path): bool {
+            return $path !== '';
+        })));
+
+        return $normalized;
+    }
+
+    private function resolveReadableDebugLogPath(array $candidates): string
+    {
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
+    private function readTailLines(string $path, int $maxLines): array
+    {
+        $handle = @fopen($path, 'rb');
+        if (!$handle) {
+            return array();
+        }
+
+        $buffer = '';
+        $chunkSize = 8192;
+        $position = -1;
+        $lineCount = 0;
+
+        fseek($handle, 0, SEEK_END);
+        $fileSize = ftell($handle);
+        if (!is_int($fileSize) || $fileSize <= 0) {
+            fclose($handle);
+            return array();
+        }
+
+        while ($lineCount <= $maxLines && (-$position) < $fileSize) {
+            $seek = min($chunkSize, $fileSize + $position + 1);
+            fseek($handle, $position - $seek + 1, SEEK_END);
+            $chunk = fread($handle, $seek);
+            if (!is_string($chunk) || $chunk === '') {
+                break;
+            }
+
+            $buffer = $chunk . $buffer;
+            $lineCount = substr_count($buffer, "\n");
+            $position -= $seek;
+        }
+
+        fclose($handle);
+
+        $lines = preg_split('/\r\n|\r|\n/', $buffer);
+        if (!is_array($lines)) {
+            return array();
+        }
+
+        $lines = array_values(array_filter(array_map('trim', $lines), static function (string $line): bool {
+            return $line !== '';
+        }));
+
+        if (count($lines) > $maxLines) {
+            $lines = array_slice($lines, -$maxLines);
+        }
+
+        return $lines;
     }
 
     public function canManageSettings(): bool
