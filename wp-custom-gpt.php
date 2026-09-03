@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Custom GPT
  * Description: Brings core features from pwa_custom_gpt into WordPress.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: Heiko
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('WPCGPT_PLUGIN_VERSION', '0.1.0');
+define('WPCGPT_PLUGIN_VERSION', '0.2.0');
 define('WPCGPT_PLUGIN_FILE', __FILE__);
 define('WPCGPT_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WPCGPT_PLUGIN_URL', plugin_dir_url(__FILE__));

@@ -64,6 +64,19 @@ Use the build script to generate a ZIP that can be uploaded in WordPress via Plu
 bash scripts/build-plugin-zip.sh
 ```
 
+Version bump options:
+
+```bash
+# default: patch bump (x.y.z -> x.y.z+1)
+bash scripts/build-plugin-zip.sh --patch
+
+# minor bump (x.y.z -> x.y+1.0)
+bash scripts/build-plugin-zip.sh --minor
+
+# major bump (x.y.z -> x+1.0.0)
+bash scripts/build-plugin-zip.sh --major
+```
+
 2. The archive is created in `dist/` with the naming pattern:
 
 ```text
@@ -75,7 +88,7 @@ dist/wp-custom-gpt-<version>.zip
 
 ### Notes
 
-- The script reads the version from `wp-custom-gpt.php`.
+- The script increments the plugin version on each execution (`--patch`, `--minor`, `--major`) and writes it back to `wp-custom-gpt.php`.
 - It excludes local build artifacts and `.git` metadata.
 - Required tool in your shell: `rsync`.
 - Archive creation uses `zip` when available, otherwise falls back to `powershell.exe` with `Compress-Archive`.

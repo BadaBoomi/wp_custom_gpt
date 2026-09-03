@@ -1,0 +1,12 @@
+# Build artifacts
+/dist/
+/.build/
+
+# Local dependencies or tooling caches
+/node_modules/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
