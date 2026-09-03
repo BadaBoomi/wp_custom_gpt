@@ -9,8 +9,10 @@ use WpCustomGpt\Api\SettingsController;
 use WpCustomGpt\Database\MigrationRunner;
 use WpCustomGpt\Repositories\ChatRepository;
 use WpCustomGpt\Repositories\FlowCodeRepository;
+use WpCustomGpt\Repositories\FlowFileRepository;
 use WpCustomGpt\Repositories\FlowSessionRepository;
 use WpCustomGpt\Repositories\RoomRepository;
+use WpCustomGpt\Services\FlowFileService;
 use WpCustomGpt\Services\FlowRuntimeService;
 use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
@@ -30,6 +32,8 @@ class Plugin
 
     public function init(): void
     {
+        MigrationRunner::maybeMigrate();
+
         add_action('rest_api_init', array($this, 'registerRestRoutes'));
         add_action('wp_enqueue_scripts', array($this, 'registerAssets'));
         add_action('admin_menu', array($this, 'registerAdminPages'));
@@ -48,13 +52,15 @@ class Plugin
         $roomRepository = new RoomRepository();
         $chatRepository = new ChatRepository();
         $flowCodeRepository = new FlowCodeRepository();
+        $flowFileRepository = new FlowFileRepository();
         $flowSessionRepository = new FlowSessionRepository();
-        $flowRuntimeService = new FlowRuntimeService($flowCodeRepository);
+        $flowFileService = new FlowFileService($flowFileRepository);
+        $flowRuntimeService = new FlowRuntimeService($flowCodeRepository, $flowFileService);
 
         $settingsController = new SettingsController($settingsService, $openAiService);
         $roomsController = new RoomsController($roomRepository);
         $chatsController = new ChatsController($chatRepository, $openAiService, $flowSessionRepository, $flowRuntimeService);
-        $flowCodeController = new FlowCodeController($flowRuntimeService);
+        $flowCodeController = new FlowCodeController($flowRuntimeService, $flowFileService);
 
         $settingsController->registerRoutes();
         $roomsController->registerRoutes();
@@ -181,6 +187,12 @@ class Plugin
         echo '    <p><label for="wpcgpt-flow-code"><strong>Flow PHP Code (function body, no &lt;?php tag)</strong></label><br />';
         echo '    <textarea id="wpcgpt-flow-code" rows="20" style="width:100%;font-family:Consolas,Monaco,monospace;"></textarea></p>';
         echo '    <p><button type="button" id="wpcgpt-flow-validate" class="button button-secondary">Validate</button> <button type="button" id="wpcgpt-flow-save" class="button button-primary">Save Active Version</button> <button type="button" id="wpcgpt-flow-deactivate" class="button">Deactivate</button></p>';
+        echo '    <hr />';
+        echo '    <h2>Flow Files</h2>';
+        echo '    <p>Upload files for this flow type (xlsx, xls, csv, ods, tsv, txt, json; max 10 MB).</p>';
+        echo '    <p><input id="wpcgpt-flow-file-input" type="file" /> <button type="button" id="wpcgpt-flow-file-upload" class="button button-secondary">Upload File</button> <button type="button" id="wpcgpt-flow-file-refresh" class="button">Refresh File List</button></p>';
+        echo '    <p><label for="wpcgpt-flow-file-delete-id">File ID to delete</label> <input id="wpcgpt-flow-file-delete-id" type="number" min="1" style="width:100px;" /> <button type="button" id="wpcgpt-flow-file-delete" class="button">Delete File</button></p>';
+        echo '    <pre id="wpcgpt-flow-files-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <pre id="wpcgpt-flow-list-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <p id="wpcgpt-flow-status" aria-live="polite"></p>';
         echo '  </div>';

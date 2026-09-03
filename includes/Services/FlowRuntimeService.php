@@ -4,16 +4,19 @@ namespace WpCustomGpt\Services;
 
 use WP_Error;
 use WpCustomGpt\Repositories\FlowCodeRepository;
+use WpCustomGpt\Services\FlowFileService;
 
 class FlowRuntimeService
 {
     private const MAX_CODE_BYTES = 64000;
 
     private FlowCodeRepository $flowCodeRepository;
+    private FlowFileService $flowFileService;
 
-    public function __construct(FlowCodeRepository $flowCodeRepository)
+    public function __construct(FlowCodeRepository $flowCodeRepository, FlowFileService $flowFileService)
     {
         $this->flowCodeRepository = $flowCodeRepository;
+        $this->flowFileService = $flowFileService;
     }
 
     public function listFlows(): array
@@ -141,6 +144,13 @@ class FlowRuntimeService
         if (!$flow) {
             return new WP_Error('flow_not_found', 'No active flow definition found for flow type.', array('status' => 404));
         }
+
+        $flowFiles = $this->flowFileService->listFiles($flowType);
+        if (is_wp_error($flowFiles)) {
+            $flowFiles = array();
+        }
+
+        $context['flow_files'] = $flowFiles;
 
         $compiled = $this->compileClosure((string) $flow['code_php']);
         if (is_wp_error($compiled)) {

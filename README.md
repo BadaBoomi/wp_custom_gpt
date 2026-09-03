@@ -100,6 +100,7 @@ The plugin now includes a central admin-only page:
 - Capability required: `manage_options`
 
 It stores custom flow handlers in DB table `wpcgpt_flow_code` and executes them through the flow runtime when an active flow session is running.
+Flow-related uploads are stored in DB table `wpcgpt_flow_files` and physically in WordPress uploads under `wpcgpt-flow-files/<flow_type>/`.
 
 ### Flow REST endpoints (admin only)
 
@@ -108,6 +109,17 @@ It stores custom flow handlers in DB table `wpcgpt_flow_code` and executes them 
 - `POST /wp-json/wp-custom-gpt/v1/flows/{flowType}`
 - `DELETE /wp-json/wp-custom-gpt/v1/flows/{flowType}`
 - `POST /wp-json/wp-custom-gpt/v1/flows/validate`
+- `GET /wp-json/wp-custom-gpt/v1/flows/{flowType}/files`
+- `POST /wp-json/wp-custom-gpt/v1/flows/{flowType}/files` (multipart/form-data, field name: `file`)
+- `DELETE /wp-json/wp-custom-gpt/v1/flows/{flowType}/files/{fileId}`
+
+### Flow file uploads
+
+On the `Custom GPT Flows` admin page you can upload and manage files per flow type.
+
+- Max file size: 10 MB
+- Allowed file extensions: `xlsx`, `xls`, `csv`, `ods`, `tsv`, `txt`, `json`
+- Files are namespaced by flow type
 
 ### Flow code contract
 
@@ -124,6 +136,7 @@ Expected context fields:
 - `user_id`: current user id
 - `user_input`: current user text (`turn` mode)
 - `session`: `{ flow_type, state }`
+- `flow_files`: list of uploaded files for the current `flow_type` including `id`, `original_name`, `mime_type`, `size_bytes`, `relative_path`, `url`, `absolute_path`
 
 Expected return values:
 

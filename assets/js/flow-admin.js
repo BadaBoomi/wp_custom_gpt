@@ -7,6 +7,9 @@
     const codeInput = document.getElementById("wpcgpt-flow-code");
     const statusEl = document.getElementById("wpcgpt-flow-status");
     const listOutput = document.getElementById("wpcgpt-flow-list-output");
+    const filesOutput = document.getElementById("wpcgpt-flow-files-output");
+    const fileInput = document.getElementById("wpcgpt-flow-file-input");
+    const fileDeleteIdInput = document.getElementById("wpcgpt-flow-file-delete-id");
 
     const loadButton = document.getElementById("wpcgpt-flow-load");
     const listButton = document.getElementById("wpcgpt-flow-list");
@@ -14,6 +17,9 @@
     const validateButton = document.getElementById("wpcgpt-flow-validate");
     const saveButton = document.getElementById("wpcgpt-flow-save");
     const deactivateButton = document.getElementById("wpcgpt-flow-deactivate");
+    const fileUploadButton = document.getElementById("wpcgpt-flow-file-upload");
+    const fileRefreshButton = document.getElementById("wpcgpt-flow-file-refresh");
+    const fileDeleteButton = document.getElementById("wpcgpt-flow-file-delete");
 
     function setStatus(message, isError) {
         if (!statusEl) {
@@ -69,6 +75,35 @@
 
         if (!response.ok) {
             const message = data && data.message ? data.message : "Request failed.";
+            throw new Error(message);
+        }
+
+        return data;
+    }
+
+    async function uploadFile(path, file) {
+        if (!restBase) {
+            throw new Error("REST base URL is missing.");
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(restBase + path, {
+            method: "POST",
+            headers: {
+                "X-WP-Nonce": nonce,
+            },
+            body: formData,
+            credentials: "same-origin",
+        });
+
+        const data = await response.json().catch(function () {
+            return {};
+        });
+
+        if (!response.ok) {
+            const message = data && data.message ? data.message : "Upload failed.";
             throw new Error(message);
         }
 
@@ -137,6 +172,74 @@
         setStatus("Flow deactivated: " + flowType, false);
     }
 
+    async function refreshFlowFiles() {
+        const flowType = getFlowType();
+        if (!flowType) {
+            throw new Error("Flow type is required.");
+        }
+
+        const data = await request("/flows/" + encodeURIComponent(flowType) + "/files", "GET");
+        if (!filesOutput) {
+            return;
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+            filesOutput.textContent = "No files uploaded for this flow.";
+            return;
+        }
+
+        filesOutput.textContent = JSON.stringify(
+            data.map(function (entry) {
+                return {
+                    id: entry.id,
+                    original_name: entry.original_name,
+                    mime_type: entry.mime_type,
+                    size_bytes: entry.size_bytes,
+                    updated_at: entry.updated_at,
+                    relative_path: entry.relative_path,
+                };
+            }),
+            null,
+            2
+        );
+    }
+
+    async function uploadFlowFile() {
+        const flowType = getFlowType();
+        if (!flowType) {
+            throw new Error("Flow type is required.");
+        }
+
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            throw new Error("Please select a file to upload.");
+        }
+
+        await uploadFile("/flows/" + encodeURIComponent(flowType) + "/files", fileInput.files[0]);
+        fileInput.value = "";
+        setStatus("File uploaded.", false);
+        await refreshFlowFiles();
+    }
+
+    async function deleteFlowFile() {
+        const flowType = getFlowType();
+        if (!flowType) {
+            throw new Error("Flow type is required.");
+        }
+
+        if (!fileDeleteIdInput) {
+            throw new Error("Delete input is unavailable.");
+        }
+
+        const fileId = parseInt(String(fileDeleteIdInput.value || "0"), 10);
+        if (!fileId || fileId <= 0) {
+            throw new Error("Please provide a valid file id.");
+        }
+
+        await request("/flows/" + encodeURIComponent(flowType) + "/files/" + String(fileId), "DELETE");
+        setStatus("File deleted: #" + String(fileId), false);
+        await refreshFlowFiles();
+    }
+
     function bind(button, action) {
         if (!button) {
             return;
@@ -157,6 +260,9 @@
     bind(validateButton, validateFlow);
     bind(saveButton, saveFlow);
     bind(deactivateButton, deactivateFlow);
+    bind(fileUploadButton, uploadFlowFile);
+    bind(fileRefreshButton, refreshFlowFiles);
+    bind(fileDeleteButton, deleteFlowFile);
 
     if (templateButton) {
         templateButton.addEventListener("click", function () {

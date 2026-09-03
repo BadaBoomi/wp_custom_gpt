@@ -2,6 +2,9 @@
 /dist/
 /.build/
 
+# Runtime and template resources
+/resources/
+
 # Local dependencies or tooling caches
 /node_modules/
 
