@@ -5,34 +5,79 @@ namespace WpCustomGpt\Database;
 class MigrationRunner
 {
     private const SCHEMA_VERSION = '3';
+    private const REQUIRED_TABLE_SUFFIXES = array(
+        'wpcgpt_rooms',
+        'wpcgpt_chats',
+        'wpcgpt_messages',
+        'wpcgpt_flow_sessions',
+        'wpcgpt_flow_code',
+        'wpcgpt_flow_files',
+    );
 
     public static function maybeMigrate(): void
     {
-        global $wpdb;
-
         $storedVersion = (string) get_option('wpcgpt_schema_version', '0');
         if ((int) $storedVersion >= (int) self::SCHEMA_VERSION) {
-            $requiredTables = array(
-                $wpdb->prefix . 'wpcgpt_rooms',
-                $wpdb->prefix . 'wpcgpt_chats',
-                $wpdb->prefix . 'wpcgpt_messages',
-                $wpdb->prefix . 'wpcgpt_flow_sessions',
-                $wpdb->prefix . 'wpcgpt_flow_code',
-                $wpdb->prefix . 'wpcgpt_flow_files',
-            );
-
-            foreach ($requiredTables as $tableName) {
-                $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tableName));
-                if ((string) $existing !== $tableName) {
-                    self::migrate();
-                    return;
-                }
-            }
-
             return;
         }
 
         self::migrate();
+    }
+
+    public static function checkAndRepairIntegrity(): array
+    {
+        return self::runIntegrityCheck(true);
+    }
+
+    public static function checkIntegrityOnly(): array
+    {
+        return self::runIntegrityCheck(false);
+    }
+
+    private static function runIntegrityCheck(bool $repairMissing): array
+    {
+        global $wpdb;
+
+        $before = self::findMissingTables($wpdb);
+        $repaired = false;
+
+        if ($repairMissing && !empty($before)) {
+            self::migrate();
+            $repaired = true;
+        }
+
+        $after = self::findMissingTables($wpdb);
+
+        return array(
+            'ok' => empty($after),
+            'repaired' => $repaired,
+            'missing_before' => array_values($before),
+            'missing_after' => array_values($after),
+            'checked_tables' => count(self::getRequiredTables($wpdb)),
+            'schema_version_expected' => self::SCHEMA_VERSION,
+            'schema_version_stored' => (string) get_option('wpcgpt_schema_version', '0'),
+        );
+    }
+
+    private static function getRequiredTables($wpdb): array
+    {
+        $tables = array();
+        foreach (self::REQUIRED_TABLE_SUFFIXES as $suffix) {
+            $tables[] = $wpdb->prefix . $suffix;
+        }
+        return $tables;
+    }
+
+    private static function findMissingTables($wpdb): array
+    {
+        $missing = array();
+        foreach (self::getRequiredTables($wpdb) as $tableName) {
+            $existing = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $tableName));
+            if ((string) $existing !== $tableName) {
+                $missing[] = $tableName;
+            }
+        }
+        return $missing;
     }
 
     public static function migrate(): void

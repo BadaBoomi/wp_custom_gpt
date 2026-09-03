@@ -12,6 +12,7 @@
     const fileDeleteIdInput = document.getElementById("wpcgpt-flow-file-delete-id");
     const openAiDebugEnabledInput = document.getElementById("wpcgpt-openai-debug-enabled");
     const openAiDebugOutput = document.getElementById("wpcgpt-openai-debug-output");
+    const tableIntegrityOutput = document.getElementById("wpcgpt-table-integrity-output");
 
     const loadButton = document.getElementById("wpcgpt-flow-load");
     const listButton = document.getElementById("wpcgpt-flow-list");
@@ -24,6 +25,8 @@
     const fileDeleteButton = document.getElementById("wpcgpt-flow-file-delete");
     const openAiDebugSaveButton = document.getElementById("wpcgpt-openai-debug-save");
     const openAiDebugLoadButton = document.getElementById("wpcgpt-openai-debug-load");
+    const tableIntegrityVerifyButton = document.getElementById("wpcgpt-table-integrity-verify");
+    const tableIntegrityCheckButton = document.getElementById("wpcgpt-table-integrity-check");
 
     function setStatus(message, isError) {
         if (!statusEl) {
@@ -292,6 +295,67 @@
         setStatus("OpenAI-Debug-Log geladen (" + String(lines.length) + " Zeilen).", false);
     }
 
+    function renderTableIntegrityResult(data) {
+        const checkedTables = Number(data && data.checked_tables ? data.checked_tables : 0);
+        const repaired = !!(data && data.repaired);
+        const ok = !!(data && data.ok);
+        const missingBefore = Array.isArray(data && data.missing_before) ? data.missing_before : [];
+        const missingAfter = Array.isArray(data && data.missing_after) ? data.missing_after : [];
+
+        if (tableIntegrityOutput) {
+            tableIntegrityOutput.textContent = JSON.stringify(
+                {
+                    ok: ok,
+                    repaired: repaired,
+                    checked_tables: checkedTables,
+                    missing_before: missingBefore,
+                    missing_after: missingAfter,
+                    schema_version_expected: data && data.schema_version_expected ? data.schema_version_expected : "",
+                    schema_version_stored: data && data.schema_version_stored ? data.schema_version_stored : "",
+                },
+                null,
+                2
+            );
+        }
+
+        return {
+            checkedTables: checkedTables,
+            repaired: repaired,
+            ok: ok,
+            missingBefore: missingBefore,
+            missingAfter: missingAfter,
+        };
+    }
+
+    async function runTableIntegrityCheck() {
+        const data = await request("/settings/table-integrity-check", "POST");
+        const result = renderTableIntegrityResult(data);
+
+        if (result.ok) {
+            setStatus(
+                result.repaired
+                    ? "Integritaetscheck abgeschlossen. Fehlende Tabellen wurden repariert."
+                    : "Integritaetscheck abgeschlossen. Alle Tabellen sind vorhanden.",
+                false
+            );
+            return;
+        }
+
+        setStatus("Integritaetscheck abgeschlossen, aber es fehlen weiterhin Tabellen. Details siehe Ausgabe.", true);
+    }
+
+    async function runTableIntegrityVerify() {
+        const data = await request("/settings/table-integrity-verify", "POST");
+        const result = renderTableIntegrityResult(data);
+
+        if (result.ok) {
+            setStatus("Tabellenpruefung abgeschlossen. Alle Tabellen sind vorhanden.", false);
+            return;
+        }
+
+        setStatus("Tabellenpruefung abgeschlossen. Es fehlen Tabellen (keine Reparatur ausgefuehrt).", true);
+    }
+
     function bind(button, action) {
         if (!button) {
             return;
@@ -317,6 +381,8 @@
     bind(fileDeleteButton, deleteFlowFile);
     bind(openAiDebugSaveButton, saveDebugSetting);
     bind(openAiDebugLoadButton, loadDebugLog);
+    bind(tableIntegrityVerifyButton, runTableIntegrityVerify);
+    bind(tableIntegrityCheckButton, runTableIntegrityCheck);
 
     if (templateButton) {
         templateButton.addEventListener("click", function () {

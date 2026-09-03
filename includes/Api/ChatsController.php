@@ -13,6 +13,9 @@ use WpCustomGpt\Services\OpenAiService;
 class ChatsController
 {
     private const NAMESPACE = 'wp-custom-gpt/v1';
+    private const DEFAULT_MESSAGES_LIMIT = 150;
+    private const MAX_MESSAGES_LIMIT = 500;
+    private const OPENAI_HISTORY_LIMIT = 30;
 
     private ChatRepository $chatRepository;
     private RoomRepository $roomRepository;
@@ -100,7 +103,13 @@ class ChatsController
     public function listMessagesForChat(WP_REST_Request $request): array
     {
         $chatId = (int) $request->get_param('chatId');
-        return $this->chatRepository->listMessagesForChat($chatId, (int) get_current_user_id());
+        $requestedLimit = (int) $request->get_param('limit');
+        if ($requestedLimit <= 0) {
+            $requestedLimit = self::DEFAULT_MESSAGES_LIMIT;
+        }
+
+        $limit = min(self::MAX_MESSAGES_LIMIT, $requestedLimit);
+        return $this->chatRepository->listRecentMessagesForChat($chatId, (int) get_current_user_id(), $limit);
     }
 
     public function addMessage(WP_REST_Request $request)
@@ -145,7 +154,7 @@ class ChatsController
             return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
         }
 
-        $savedUserMessage = $this->chatRepository->addMessage($chatId, $userId, 'user', $message);
+        $savedUserMessage = $this->chatRepository->addMessage($chatId, $userId, 'user', $message, true);
         if (!$savedUserMessage) {
             return new WP_Error('save_failed', 'Benutzernachricht konnte nicht gespeichert werden.', array('status' => 500));
         }
@@ -174,7 +183,7 @@ class ChatsController
 
             $savedAssistantMessage = null;
             if (trim($flowReply) !== '') {
-                $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $flowReply);
+                $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $flowReply, true);
                 if (!$savedAssistantMessage) {
                     return new WP_Error('save_failed', 'Assistenten-Nachricht konnte nicht gespeichert werden.', array('status' => 500));
                 }
@@ -200,8 +209,8 @@ class ChatsController
             ));
         }
 
-        $history = $this->chatRepository->listMessagesForChat($chatId, $userId);
         $openAiRequestContext = $this->buildOpenAiRequestContext($chat, $chatId, $userId);
+        $history = $this->buildOpenAiHistory($chatId, $userId, $message, $openAiRequestContext);
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
             $promptIdOverride !== '' ? $promptIdOverride : null,
@@ -219,7 +228,7 @@ class ChatsController
 
         $savedAssistantMessage = null;
         if (trim($visibleAssistantText) !== '') {
-            $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $visibleAssistantText);
+            $savedAssistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $visibleAssistantText, true);
             if (!$savedAssistantMessage) {
                 return new WP_Error('save_failed', 'Assistenten-Nachricht konnte nicht gespeichert werden.', array('status' => 500));
             }
@@ -235,7 +244,7 @@ class ChatsController
                     $initialPrompt = (string) ($initialResult['initial_prompt'] ?? '');
                     $initialPrompt = $this->processRoomDirectivesForOutput($chat, $userId, $initialPrompt);
                     if ($initialPrompt !== '') {
-                        $savedFlowPrompt = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $initialPrompt);
+                        $savedFlowPrompt = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $initialPrompt, true);
                         if ($savedFlowPrompt) {
                             $savedAssistantMessage = $savedFlowPrompt;
                         }
@@ -396,6 +405,7 @@ class ChatsController
     private function buildOpenAiRequestContext(array $chat, int $chatId, int $userId): array
     {
         $roomId = isset($chat['room_id']) ? (int) $chat['room_id'] : 0;
+        $conversationId = isset($chat['conversation_id']) ? trim((string) $chat['conversation_id']) : '';
         $roomAttributes = array();
 
         if ($roomId > 0) {
@@ -405,8 +415,24 @@ class ChatsController
         return array(
             'chat_id' => $chatId,
             'room_id' => $roomId > 0 ? $roomId : null,
+            'conversation_id' => $conversationId !== '' ? $conversationId : null,
             'room_attributes' => is_array($roomAttributes) ? $roomAttributes : array(),
         );
+    }
+
+    private function buildOpenAiHistory(int $chatId, int $userId, string $currentMessage, array $requestContext): array
+    {
+        $conversationId = isset($requestContext['conversation_id']) ? trim((string) $requestContext['conversation_id']) : '';
+        if ($conversationId !== '') {
+            return array(
+                array(
+                    'role' => 'user',
+                    'content' => $currentMessage,
+                ),
+            );
+        }
+
+        return $this->chatRepository->listRecentMessagesForChat($chatId, $userId, self::OPENAI_HISTORY_LIMIT, true);
     }
 
     public function isLoggedIn(): bool

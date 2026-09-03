@@ -150,6 +150,11 @@ class RoomRepository
         return $this->decodeCustomAttributes((string) ($room['custom_attributes'] ?? ''));
     }
 
+    public function getByIdForUser(int $roomId, int $userId): ?array
+    {
+        return $this->findByIdForUser($roomId, $userId);
+    }
+
     private function findByIdForUser(int $roomId, int $userId): ?array
     {
         $sql = $this->wpdb->prepare(

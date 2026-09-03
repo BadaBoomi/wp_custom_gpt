@@ -34,6 +34,11 @@ class RoomsController
 
         register_rest_route(self::NAMESPACE, '/rooms/(?P<id>\\d+)', array(
             array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getRoom'),
+                'permission_callback' => array($this, 'isLoggedIn'),
+            ),
+            array(
                 'methods' => 'POST',
                 'callback' => array($this, 'renameRoom'),
                 'permission_callback' => array($this, 'isLoggedIn'),
@@ -62,6 +67,18 @@ class RoomsController
         }
 
         $room = $this->roomRepository->create((int) get_current_user_id(), $name);
+
+        return rest_ensure_response($room);
+    }
+
+    public function getRoom(WP_REST_Request $request)
+    {
+        $roomId = (int) $request->get_param('id');
+        $room = $this->roomRepository->getByIdForUser($roomId, (int) get_current_user_id());
+
+        if (!$room) {
+            return new WP_Error('not_found', 'Raum nicht gefunden.', array('status' => 404));
+        }
 
         return rest_ensure_response($room);
     }

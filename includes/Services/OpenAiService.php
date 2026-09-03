@@ -42,6 +42,11 @@ class OpenAiService
             'input' => $input,
         );
 
+        $conversationId = isset($requestContext['conversation_id']) ? trim((string) $requestContext['conversation_id']) : '';
+        if ($conversationId !== '') {
+            $payload['conversation'] = $conversationId;
+        }
+
         $metadata = $this->buildRequestMetadata($requestContext, $normalizedAttributes);
         if (!empty($metadata)) {
             $payload['metadata'] = $metadata;

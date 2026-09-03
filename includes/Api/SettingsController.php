@@ -4,6 +4,7 @@ namespace WpCustomGpt\Api;
 
 use WP_Error;
 use WP_REST_Request;
+use WpCustomGpt\Database\MigrationRunner;
 use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
 
@@ -47,6 +48,22 @@ class SettingsController
             array(
                 'methods' => 'GET',
                 'callback' => array($this, 'getOpenAiDebugLog'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/settings/table-integrity-check', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'runTableIntegrityCheck'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/settings/table-integrity-verify', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'runTableIntegrityVerify'),
                 'permission_callback' => array($this, 'canManageSettings'),
             ),
         ));
@@ -120,6 +137,33 @@ class SettingsController
             'candidates' => $candidates,
             'lines' => $filtered,
             'total' => count($filtered),
+        ));
+    }
+
+    public function runTableIntegrityCheck()
+    {
+        $result = MigrationRunner::checkAndRepairIntegrity();
+
+        return $this->formatTableIntegrityResponse($result);
+    }
+
+    public function runTableIntegrityVerify()
+    {
+        $result = MigrationRunner::checkIntegrityOnly();
+
+        return $this->formatTableIntegrityResponse($result);
+    }
+
+    private function formatTableIntegrityResponse(array $result)
+    {
+        return rest_ensure_response(array(
+            'ok' => (bool) ($result['ok'] ?? false),
+            'repaired' => (bool) ($result['repaired'] ?? false),
+            'checked_tables' => (int) ($result['checked_tables'] ?? 0),
+            'missing_before' => isset($result['missing_before']) && is_array($result['missing_before']) ? $result['missing_before'] : array(),
+            'missing_after' => isset($result['missing_after']) && is_array($result['missing_after']) ? $result['missing_after'] : array(),
+            'schema_version_expected' => (string) ($result['schema_version_expected'] ?? ''),
+            'schema_version_stored' => (string) ($result['schema_version_stored'] ?? ''),
         ));
     }
 

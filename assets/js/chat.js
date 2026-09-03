@@ -306,9 +306,37 @@
         lastMessageCount = messages.length;
     }
 
+    function appendPendingUserMessage(contentText) {
+        if (!messageOutput) {
+            return;
+        }
+
+        var wrapper = document.createElement('div');
+        wrapper.style.marginBottom = '10px';
+        wrapper.setAttribute('data-pending-user-message', '1');
+
+        var role = document.createElement('div');
+        role.textContent = 'USER';
+        role.style.fontWeight = '600';
+        role.style.fontSize = '12px';
+        role.style.color = '#1f2328';
+
+        var content = document.createElement('div');
+        content.style.whiteSpace = 'pre-wrap';
+        content.style.lineHeight = '1.45';
+        content.style.padding = '6px 0';
+        content.style.opacity = '0.75';
+        content.textContent = contentText;
+
+        wrapper.appendChild(role);
+        wrapper.appendChild(content);
+        messageOutput.appendChild(wrapper);
+        messageOutput.scrollTop = messageOutput.scrollHeight;
+    }
+
     function loadMessages() {
         setStatus('Nachrichten werden geladen...', false);
-        request('/chats/' + chatId + '/messages', { method: 'GET' })
+        request('/chats/' + chatId + '/messages?limit=150', { method: 'GET' })
             .then(function (messages) {
                 renderMessages(messages);
                 setStatus('Nachrichten geladen.', false);
@@ -323,17 +351,8 @@
             return;
         }
 
-        request('/rooms', { method: 'GET' })
-            .then(function (rooms) {
-                if (!Array.isArray(rooms)) {
-                    roomLabelEl.textContent = 'Raum: #' + String(roomId);
-                    return;
-                }
-
-                var room = rooms.find(function (entry) {
-                    return Number(entry && entry.id) === roomId;
-                });
-
+        request('/rooms/' + roomId, { method: 'GET' })
+            .then(function (room) {
                 if (room && room.name) {
                     roomLabelEl.textContent = 'Raum: ' + formatRoomDisplayName(room);
                     return;
@@ -365,6 +384,11 @@
             return;
         }
 
+        if (sendMessageBtn) {
+            sendMessageBtn.disabled = true;
+        }
+
+        appendPendingUserMessage(message);
         setStatus('Nachricht wird gesendet...', false);
 
         request('/chats/' + chatId + '/send', {
@@ -381,6 +405,12 @@
             })
             .catch(function (error) {
                 setStatus(error.message, true);
+                loadMessages();
+            })
+            .finally(function () {
+                if (sendMessageBtn) {
+                    sendMessageBtn.disabled = false;
+                }
             });
     });
 

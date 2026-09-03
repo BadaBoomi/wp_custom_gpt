@@ -170,22 +170,8 @@
     }
 
     function loadRoomLabel() {
-        request('/rooms', { method: 'GET' })
-            .then(function (rooms) {
-                if (!Array.isArray(rooms)) {
-                    roomLabelEl.textContent = 'Raum: #' + roomId;
-                    return;
-                }
-
-                var room = rooms.find(function (entry) {
-                    return Number(entry && entry.id) === roomId;
-                });
-
-                if (!room) {
-                    roomLabelEl.textContent = 'Raum: #' + roomId;
-                    return;
-                }
-
+        request('/rooms/' + roomId, { method: 'GET' })
+            .then(function (room) {
                 roomLabelEl.textContent = 'Raum: ' + formatRoomDisplayName(room);
             })
             .catch(function () {

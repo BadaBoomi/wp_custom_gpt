@@ -66,9 +66,9 @@ class ChatRepository
         return $this->findChatForUser($chatId, $userId);
     }
 
-    public function listMessagesForChat(int $chatId, int $userId): array
+    public function listMessagesForChat(int $chatId, int $userId, bool $skipOwnershipCheck = false): array
     {
-        if (!$this->chatExistsForUser($chatId, $userId)) {
+        if (!$skipOwnershipCheck && !$this->chatExistsForUser($chatId, $userId)) {
             return array();
         }
 
@@ -86,9 +86,36 @@ class ChatRepository
         return array_map(array($this, 'normalizeMessage'), $rows ?: array());
     }
 
-    public function addMessage(int $chatId, int $userId, string $role, string $content): ?array
+    public function listRecentMessagesForChat(int $chatId, int $userId, int $limit, bool $skipOwnershipCheck = false): array
     {
-        if (!$this->chatExistsForUser($chatId, $userId)) {
+        if (!$skipOwnershipCheck && !$this->chatExistsForUser($chatId, $userId)) {
+            return array();
+        }
+
+        $safeLimit = max(1, min(500, $limit));
+        $sql = $this->wpdb->prepare(
+            "SELECT id, chat_id, role, content, meta_json, created_at
+             FROM {$this->messagesTable}
+             WHERE user_id = %d AND chat_id = %d
+             ORDER BY id DESC
+             LIMIT %d",
+            $userId,
+            $chatId,
+            $safeLimit
+        );
+
+        $rows = $this->wpdb->get_results($sql, ARRAY_A);
+        if (!is_array($rows) || empty($rows)) {
+            return array();
+        }
+
+        $rows = array_reverse($rows);
+        return array_map(array($this, 'normalizeMessage'), $rows);
+    }
+
+    public function addMessage(int $chatId, int $userId, string $role, string $content, bool $skipOwnershipCheck = false): ?array
+    {
+        if (!$skipOwnershipCheck && !$this->chatExistsForUser($chatId, $userId)) {
             return null;
         }
 
