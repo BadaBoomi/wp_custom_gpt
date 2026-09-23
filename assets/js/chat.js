@@ -210,6 +210,7 @@
                     selectedConfiguration = {
                         label: button.label,
                         promptId: button.promptId || '',
+                        vectorStoreId: button.vectorStoreId || '',
                     };
                     setStatus('Konfiguration ausgewaehlt: ' + button.label, false);
                 }
@@ -285,6 +286,7 @@
                 var label = (entry && entry.label ? String(entry.label) : '').trim();
                 var content = (entry && entry.prompt ? String(entry.prompt) : '').trim();
                 var promptId = (entry && entry.promptId ? String(entry.promptId) : '').trim();
+                var vectorStoreId = (entry && entry.vectorStoreId ? String(entry.vectorStoreId) : '').trim();
 
                 if (!label || !content) {
                     return null;
@@ -294,6 +296,7 @@
                     label: label,
                     content: content,
                     promptId: promptId,
+                    vectorStoreId: vectorStoreId,
                 };
             })
             .filter(function (item) {
@@ -331,6 +334,7 @@
                             label: item.label,
                             content: item.content,
                             promptId: '',
+                            vectorStoreId: '',
                         };
                     });
                 }
@@ -433,6 +437,7 @@
             body: JSON.stringify({
                 message: message,
                 prompt_id: selectedConfiguration && selectedConfiguration.promptId ? selectedConfiguration.promptId : '',
+                vector_store_ids: selectedConfiguration && selectedConfiguration.vectorStoreId ? selectedConfiguration.vectorStoreId : '',
             }),
         })
             .then(function () {

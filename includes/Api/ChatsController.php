@@ -144,6 +144,7 @@ class ChatsController
         $payload = $request->get_json_params();
         $message = is_array($payload) ? (string) ($payload['message'] ?? '') : '';
         $promptIdOverride = is_array($payload) ? trim((string) ($payload['prompt_id'] ?? '')) : '';
+        $vectorStoreIdsOverride = is_array($payload) ? trim((string) ($payload['vector_store_ids'] ?? '')) : '';
 
         if (trim($message) === '') {
             return new WP_Error('invalid_message', 'Nachricht ist erforderlich.', array('status' => 400));
@@ -214,7 +215,8 @@ class ChatsController
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
             $promptIdOverride !== '' ? $promptIdOverride : null,
-            $openAiRequestContext
+            $openAiRequestContext,
+            $vectorStoreIdsOverride !== '' ? $vectorStoreIdsOverride : null
         );
 
         if (is_wp_error($openAiResult)) {

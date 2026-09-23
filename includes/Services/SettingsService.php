@@ -53,6 +53,10 @@ class SettingsService
             update_option(self::OPTION_STARTERS, (string) $payload['starters'], false);
         }
 
+        if (array_key_exists('configuration_entries', $payload) && is_array($payload['configuration_entries'])) {
+            $this->saveConfigurationRows($this->normalizeConfigurationEntries($payload['configuration_entries']));
+        }
+
         if (array_key_exists('openai_debug_enabled', $payload)) {
             $enabled = $this->toBool($payload['openai_debug_enabled']) ? '1' : '0';
             update_option(self::OPTION_OPENAI_DEBUG_ENABLED, $enabled, false);
@@ -77,6 +81,39 @@ class SettingsService
     {
         $starters = (string) get_option(self::OPTION_STARTERS, '');
         return $this->parseStarterPromptsMarkdown($starters);
+    }
+
+    /**
+     * @param array<int, mixed> $entries
+     * @return array<int, array{label: string, prompt: string, promptId: string, vectorStoreId: string}>
+     */
+    public function normalizeConfigurationEntries(array $entries): array
+    {
+        $normalized = array();
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $label = trim(sanitize_text_field((string) ($entry['label'] ?? '')));
+            $prompt = trim((string) ($entry['prompt'] ?? ''));
+            $promptId = trim(sanitize_text_field((string) ($entry['promptId'] ?? '')));
+            $vectorStoreId = trim(sanitize_text_field((string) ($entry['vectorStoreId'] ?? '')));
+
+            if ($label === '' && $prompt === '' && $promptId === '' && $vectorStoreId === '') {
+                continue;
+            }
+
+            $normalized[] = array(
+                'label' => $label !== '' ? $label : 'Ohne Bezeichnung',
+                'prompt' => $prompt,
+                'promptId' => $promptId,
+                'vectorStoreId' => $vectorStoreId,
+            );
+        }
+
+        return $normalized;
     }
 
     public function parseConfigurationPrompts(string $rawText): array
@@ -127,8 +164,8 @@ class SettingsService
 
     public function saveConfigurationRows(array $rows): void
     {
-        $header = '| Zweck | Prompt | Prompt-ID |';
-        $separator = '|---|---|---|';
+        $header = '| Zweck | Prompt | Prompt-ID | Vector-Store-ID |';
+        $separator = '|---|---|---|---|';
         $body = array();
 
         foreach ($rows as $row) {
@@ -139,12 +176,14 @@ class SettingsService
             $label = trim((string) ($row['label'] ?? ''));
             $prompt = trim((string) ($row['prompt'] ?? ''));
             $promptId = trim((string) ($row['promptId'] ?? ''));
+            $vectorStoreId = trim((string) ($row['vectorStoreId'] ?? ''));
 
             $safeLabel = str_replace('|', '/', $label);
             $safePrompt = str_replace('|', '/', $prompt);
             $safePromptId = str_replace('|', '/', $promptId);
+            $safeVectorStoreId = str_replace('|', '/', $vectorStoreId);
 
-            $body[] = sprintf('| %s | %s | %s |', $safeLabel, $safePrompt, $safePromptId);
+            $body[] = sprintf('| %s | %s | %s | %s |', $safeLabel, $safePrompt, $safePromptId, $safeVectorStoreId);
         }
 
         $markdown = implode("\n", array_merge(array($header, $separator), $body));
@@ -160,10 +199,14 @@ class SettingsService
         $labelRaw = $value['Zweck'] ?? $value['Desc'] ?? $value['Description'] ?? $value['label'] ?? $value['name'] ?? $value['title'] ?? '';
         $promptRaw = $value['Prompt'] ?? $value['prompt'] ?? $value['text'] ?? $value['value'] ?? '';
         $promptIdRaw = $value['Pmpt-ID'] ?? $value['Prompt-ID'] ?? $value['promptId'] ?? $value['pmptId'] ?? '';
+        $vectorStoreIdRaw = $value['Vector-Store-ID'] ?? $value['VectorStore-ID'] ?? $value['vectorStoreId'] ?? $value['vector_store_id'] ?? '';
 
         $label = trim((string) $labelRaw);
         $prompt = trim((string) $promptRaw);
         $promptId = trim((string) $promptIdRaw);
+        $vectorStoreId = is_array($vectorStoreIdRaw)
+            ? implode(',', array_map('strval', $vectorStoreIdRaw))
+            : trim((string) $vectorStoreIdRaw);
 
         if ($label === '' && $prompt === '') {
             return array();
@@ -174,6 +217,7 @@ class SettingsService
                 'label' => $label !== '' ? $label : 'Ohne Bezeichnung',
                 'prompt' => $prompt,
                 'promptId' => $promptId,
+                'vectorStoreId' => $vectorStoreId,
             ),
         );
     }
@@ -192,18 +236,22 @@ class SettingsService
                 continue;
             }
 
-            $parts = array_values(array_filter(array_map('trim', explode('|', $trimmed)), function ($value) {
-                return $value !== '';
-            }));
-
+            $parts = array_map('trim', explode('|', trim($trimmed, '|')));
             if (count($parts) < 2) {
                 continue;
             }
 
+            $label = $parts[0];
+            $prompt = $parts[1];
+            if ($label === '' && $prompt === '') {
+                continue;
+            }
+
             $entries[] = array(
-                'label' => $parts[0],
-                'prompt' => $parts[1],
+                'label' => $label,
+                'prompt' => $prompt,
                 'promptId' => $parts[2] ?? '',
+                'vectorStoreId' => $parts[3] ?? '',
             );
         }
 

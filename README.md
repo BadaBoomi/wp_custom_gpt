@@ -159,10 +159,25 @@ Behavior:
 - Runtime requests `initial` mode and stores the returned initial prompt as assistant message.
 - Following user turns use the active flow runtime instead of OpenAI until status is `completed` or `aborted`.
 
+### Configuration entries on the settings page
+
+The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
+
+```text
+| Zweck | Prompt | Prompt-ID | Vector-Store-ID |
+```
+
+Rows can be added and removed manually and are saved with the settings form. They are stored as a markdown table in the
+`wpcgpt_starters` option and used to build the initial action buttons in the chat view.
+
+When an entry is selected in the chat, its `Prompt-ID` and `Vector-Store-ID` override the global settings for that request.
+`Vector-Store-ID` accepts several IDs separated by commas.
+
 ### Reload from GET_CONFIGURATION
 
-On the settings page, use `Reload Configuration (GET_CONFIGURATION)` to fetch starter configuration from OpenAI and persist it in WordPress DB.
-The resulting rows are saved as starters and used to build initial action buttons in the chat view.
+On the settings page, `Reload Configuration (GET_CONFIGURATION)` still fetches the configuration from OpenAI and overwrites the
+entries in the table. Manual maintenance in the table is the primary source; only use the reload button when the entries should
+be replaced by the OpenAI answer.
 
 ## Quick chat test with OpenAI
 

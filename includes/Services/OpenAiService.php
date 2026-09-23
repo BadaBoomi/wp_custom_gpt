@@ -15,7 +15,7 @@ class OpenAiService
         $this->settingsService = $settingsService;
     }
 
-    public function createAssistantReply(array $messages, ?string $promptIdOverride = null, array $requestContext = array()): array|WP_Error
+    public function createAssistantReply(array $messages, ?string $promptIdOverride = null, array $requestContext = array(), ?string $vectorStoreIdsOverride = null): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
@@ -66,14 +66,12 @@ class OpenAiService
             $payload['model'] = 'gpt-4.1-mini';
         }
 
-        $vectorStoreIds = $this->parseVectorStoreIds((string) ($runtime['vector_store_ids'] ?? ''));
-        if (!empty($vectorStoreIds)) {
-            $payload['tools'] = array(
-                array(
-                    'type' => 'file_search',
-                    'vector_store_ids' => $vectorStoreIds,
-                ),
-            );
+        $vectorStoreIdsValue = $vectorStoreIdsOverride !== null && trim($vectorStoreIdsOverride) !== ''
+            ? trim($vectorStoreIdsOverride)
+            : (string) ($runtime['vector_store_ids'] ?? '');
+        $tools = $this->buildTools($vectorStoreIdsValue);
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
         }
 
         $body = $this->requestResponsesApi($payload);
