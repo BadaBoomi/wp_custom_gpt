@@ -253,7 +253,6 @@ class Plugin
         $html .= '    <button type="button" id="wpcgpt-create-room">Raum erstellen</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-room-list"></ul>';
-        $html .= '  <p id="wpcgpt-room-hint">Mit dem Shortcode-Attribut chats_page legen Sie fest, wohin Nutzer beim Betreten eines Raums weitergeleitet werden.</p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
