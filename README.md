@@ -75,17 +75,12 @@ For maximum reliability, use page IDs in shortcode attributes.
 Use shortcode `[wp_custom_gpt_settings]` to manage:
 
 - API key
-- Prompt ID
-- Vector store IDs
-- User email
-- Starters (Markdown table)
+- Configuration entries (`Zweck`, `Prompt`, `Prompt-ID`), stored as Markdown table
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
 - `wpcgpt_api_key`
-- `wpcgpt_prompt_id`
-- `wpcgpt_vector_store_ids`
-- `wpcgpt_user_email`
+- `wpcgpt_starters`
 
 Permission model:
 
@@ -164,27 +159,30 @@ Behavior:
 The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
 
 ```text
-| Zweck | Prompt | Prompt-ID | Vector-Store-ID |
+| Zweck | Prompt | Prompt-ID |
 ```
 
 Rows can be added and removed manually and are saved with the settings form. They are stored as a markdown table in the
-`wpcgpt_starters` option and used to build the initial action buttons in the chat view.
+`wpcgpt_starters` option.
 
-When an entry is selected in the chat, its `Prompt-ID` and `Vector-Store-ID` override the global settings for that request.
-`Vector-Store-ID` accepts several IDs separated by commas.
+### Configuration selection when creating a chat
 
-### Reload from GET_CONFIGURATION
+On the chat management page (`[wp_custom_gpt_chats ...]`) an entry can be selected when creating a new chat. The selected
+entry is stored with the chat (`config_label`, `config_prompt`, `config_prompt_id`) and defines:
 
-On the settings page, `Reload Configuration (GET_CONFIGURATION)` still fetches the configuration from OpenAI and overwrites the
-entries in the table. Manual maintenance in the table is the primary source; only use the reload button when the entries should
-be replaced by the OpenAI answer.
+- the `Prompt-ID` used for every OpenAI request of that chat (without one, `gpt-4.1-mini` is used),
+- the prompt text, which is prefilled into the message box of an empty chat,
+- whether a rule-based flow starts: if the prompt contains `[[start_rule_flow:<flow_type>]]`, the flow is started directly at
+  chat creation.
+
+Configuration entries are no longer rendered as buttons above the chat input; only `[[buttons:...]]` tokens from assistant
+replies produce buttons there.
 
 ## Quick chat test with OpenAI
 
 1. Open a page with shortcode `[wp_custom_gpt_settings]` as admin and save at least:
   - API key
-  - (optional) Prompt ID
-  - (optional) Vector store IDs
+  - (optional) configuration entries with `Prompt-ID`
 2. Open the room page (`[wp_custom_gpt_rooms ...]`) as logged-in user.
 3. Create a room and click Enter.
 4. On chat management page (`[wp_custom_gpt_chats ...]`) create a new chat or continue an existing one.
@@ -210,7 +208,7 @@ If no inline response buttons are present in the latest assistant message, the c
 
 ### Model selection behavior
 
-When a Prompt-ID is set (global or via selected configuration button), the plugin sends the request with `prompt.id` and does not force a model.
+When the chat has a Prompt-ID from its selected configuration entry, the plugin sends the request with `prompt.id` and does not force a model.
 This avoids conflicts such as `reasoning.mode is not supported with this model` caused by overriding prompt-defined behavior with an incompatible hardcoded model.
 
 ## Build a loadable WordPress archive

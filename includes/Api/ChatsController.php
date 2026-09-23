@@ -9,6 +9,7 @@ use WpCustomGpt\Repositories\FlowSessionRepository;
 use WpCustomGpt\Repositories\RoomRepository;
 use WpCustomGpt\Services\FlowRuntimeService;
 use WpCustomGpt\Services\OpenAiService;
+use WpCustomGpt\Services\SettingsService;
 
 class ChatsController
 {
@@ -22,13 +23,15 @@ class ChatsController
     private OpenAiService $openAiService;
     private FlowSessionRepository $flowSessionRepository;
     private FlowRuntimeService $flowRuntimeService;
+    private SettingsService $settingsService;
 
     public function __construct(
         ChatRepository $chatRepository,
         RoomRepository $roomRepository,
         OpenAiService $openAiService,
         FlowSessionRepository $flowSessionRepository,
-        FlowRuntimeService $flowRuntimeService
+        FlowRuntimeService $flowRuntimeService,
+        SettingsService $settingsService
     )
     {
         $this->chatRepository = $chatRepository;
@@ -36,6 +39,7 @@ class ChatsController
         $this->openAiService = $openAiService;
         $this->flowSessionRepository = $flowSessionRepository;
         $this->flowRuntimeService = $flowRuntimeService;
+        $this->settingsService = $settingsService;
     }
 
     public function registerRoutes(): void
@@ -49,6 +53,14 @@ class ChatsController
             array(
                 'methods' => 'POST',
                 'callback' => array($this, 'createChat'),
+                'permission_callback' => array($this, 'isLoggedIn'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/chats/(?P<chatId>\\d+)', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getChat'),
                 'permission_callback' => array($this, 'isLoggedIn'),
             ),
         ));
@@ -84,17 +96,58 @@ class ChatsController
     public function createChat(WP_REST_Request $request)
     {
         $roomId = (int) $request->get_param('roomId');
+        $userId = (int) get_current_user_id();
         $payload = $request->get_json_params();
         $title = is_array($payload) ? (string) ($payload['title'] ?? 'Neuer Chat') : 'Neuer Chat';
+        $configurationLabel = is_array($payload) ? trim((string) ($payload['configuration_label'] ?? '')) : '';
 
         if (trim($title) === '') {
             $title = 'Neuer Chat';
         }
 
-        $chat = $this->chatRepository->createChat($roomId, (int) get_current_user_id(), $title);
+        $entry = null;
+        if ($configurationLabel !== '') {
+            $entry = $this->settingsService->findConfigurationEntryByLabel($configurationLabel);
+            if (!$entry) {
+                return new WP_Error('configuration_not_found', 'Konfigurationseintrag nicht gefunden.', array('status' => 404));
+            }
+        }
+
+        $configPrompt = $entry ? (string) ($entry['prompt'] ?? '') : '';
+        $configPromptId = $entry ? (string) ($entry['promptId'] ?? '') : '';
+        $directive = $this->parseRuleFlowDirective($configPrompt);
+
+        $chat = $this->chatRepository->createChat(
+            $roomId,
+            $userId,
+            $title,
+            $entry ? (string) ($entry['label'] ?? '') : '',
+            $directive ? (string) $directive['cleaned_text'] : $configPrompt,
+            $configPromptId
+        );
 
         if (!$chat) {
             return new WP_Error('room_not_found', 'Raum nicht gefunden.', array('status' => 404));
+        }
+
+        $flowMeta = null;
+        if ($directive) {
+            $started = $this->startRuleFlow($chat, (int) $chat['id'], $userId, (string) $directive['flow_type']);
+            $flowMeta = $started['flow'];
+        }
+
+        $chat['flow'] = $flowMeta;
+
+        return rest_ensure_response($chat);
+    }
+
+    public function getChat(WP_REST_Request $request)
+    {
+        $chatId = (int) $request->get_param('chatId');
+        $chat = $this->chatRepository->getChatForUser($chatId, (int) get_current_user_id());
+
+        if (!$chat) {
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
         }
 
         return rest_ensure_response($chat);
@@ -143,8 +196,6 @@ class ChatsController
         $userId = (int) get_current_user_id();
         $payload = $request->get_json_params();
         $message = is_array($payload) ? (string) ($payload['message'] ?? '') : '';
-        $promptIdOverride = is_array($payload) ? trim((string) ($payload['prompt_id'] ?? '')) : '';
-        $vectorStoreIdsOverride = is_array($payload) ? trim((string) ($payload['vector_store_ids'] ?? '')) : '';
 
         if (trim($message) === '') {
             return new WP_Error('invalid_message', 'Nachricht ist erforderlich.', array('status' => 400));
@@ -212,11 +263,11 @@ class ChatsController
 
         $openAiRequestContext = $this->buildOpenAiRequestContext($chat, $chatId, $userId);
         $history = $this->buildOpenAiHistory($chatId, $userId, $message, $openAiRequestContext);
+        $promptId = isset($chat['config_prompt_id']) ? trim((string) $chat['config_prompt_id']) : '';
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
-            $promptIdOverride !== '' ? $promptIdOverride : null,
-            $openAiRequestContext,
-            $vectorStoreIdsOverride !== '' ? $vectorStoreIdsOverride : null
+            $promptId !== '' ? $promptId : null,
+            $openAiRequestContext
         );
 
         if (is_wp_error($openAiResult)) {
@@ -238,41 +289,10 @@ class ChatsController
 
         $flowMeta = null;
         if ($directive) {
-            $flowType = (string) $directive['flow_type'];
-            $initialResult = $this->flowRuntimeService->runInitialPrompt($flowType, $chatId, $userId, array());
-            if (!is_wp_error($initialResult)) {
-                $createdSession = $this->flowSessionRepository->createOrReplace($chatId, $userId, $flowType, array());
-                if ($createdSession) {
-                    $initialPrompt = (string) ($initialResult['initial_prompt'] ?? '');
-                    $initialPrompt = $this->processRoomDirectivesForOutput($chat, $userId, $initialPrompt);
-                    if ($initialPrompt !== '') {
-                        $savedFlowPrompt = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $initialPrompt, true);
-                        if ($savedFlowPrompt) {
-                            $savedAssistantMessage = $savedFlowPrompt;
-                        }
-                    }
-
-                    $initState = isset($initialResult['state']) && is_array($initialResult['state']) ? $initialResult['state'] : array();
-                    $initStatus = (string) ($initialResult['status'] ?? 'running');
-                    if ($initStatus === 'completed') {
-                        $this->flowSessionRepository->complete((int) $createdSession['id'], $userId, $initState);
-                    } elseif ($initStatus === 'aborted') {
-                        $this->flowSessionRepository->abort((int) $createdSession['id'], $userId, $initState);
-                    } else {
-                        $this->flowSessionRepository->updateRunningState((int) $createdSession['id'], $userId, $initState);
-                    }
-
-                    $flowMeta = array(
-                        'flow_type' => $flowType,
-                        'status' => $initStatus,
-                    );
-                }
-            } else {
-                $flowMeta = array(
-                    'flow_type' => $flowType,
-                    'status' => 'aborted',
-                    'error' => $initialResult->get_error_message(),
-                );
+            $started = $this->startRuleFlow($chat, $chatId, $userId, (string) $directive['flow_type']);
+            $flowMeta = $started['flow'];
+            if ($started['assistant_message']) {
+                $savedAssistantMessage = $started['assistant_message'];
             }
         }
 
@@ -286,6 +306,53 @@ class ChatsController
             'assistant_message' => $savedAssistantMessage,
             'flow' => $flowMeta,
         ));
+    }
+
+    /**
+     * @return array{flow: ?array, assistant_message: ?array}
+     */
+    private function startRuleFlow(array $chat, int $chatId, int $userId, string $flowType): array
+    {
+        $initialResult = $this->flowRuntimeService->runInitialPrompt($flowType, $chatId, $userId, array());
+        if (is_wp_error($initialResult)) {
+            return array(
+                'flow' => array(
+                    'flow_type' => $flowType,
+                    'status' => 'aborted',
+                    'error' => $initialResult->get_error_message(),
+                ),
+                'assistant_message' => null,
+            );
+        }
+
+        $createdSession = $this->flowSessionRepository->createOrReplace($chatId, $userId, $flowType, array());
+        if (!$createdSession) {
+            return array('flow' => null, 'assistant_message' => null);
+        }
+
+        $assistantMessage = null;
+        $initialPrompt = $this->processRoomDirectivesForOutput($chat, $userId, (string) ($initialResult['initial_prompt'] ?? ''));
+        if ($initialPrompt !== '') {
+            $assistantMessage = $this->chatRepository->addMessage($chatId, $userId, 'assistant', $initialPrompt, true);
+        }
+
+        $initState = isset($initialResult['state']) && is_array($initialResult['state']) ? $initialResult['state'] : array();
+        $initStatus = (string) ($initialResult['status'] ?? 'running');
+        if ($initStatus === 'completed') {
+            $this->flowSessionRepository->complete((int) $createdSession['id'], $userId, $initState);
+        } elseif ($initStatus === 'aborted') {
+            $this->flowSessionRepository->abort((int) $createdSession['id'], $userId, $initState);
+        } else {
+            $this->flowSessionRepository->updateRunningState((int) $createdSession['id'], $userId, $initState);
+        }
+
+        return array(
+            'flow' => array(
+                'flow_type' => $flowType,
+                'status' => $initStatus,
+            ),
+            'assistant_message' => $assistantMessage,
+        );
     }
 
     private function parseRuleFlowDirective(string $text): ?array

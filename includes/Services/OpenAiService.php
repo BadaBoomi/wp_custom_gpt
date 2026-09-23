@@ -15,7 +15,7 @@ class OpenAiService
         $this->settingsService = $settingsService;
     }
 
-    public function createAssistantReply(array $messages, ?string $promptIdOverride = null, array $requestContext = array(), ?string $vectorStoreIdsOverride = null): array|WP_Error
+    public function createAssistantReply(array $messages, ?string $promptId = null, array $requestContext = array()): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
@@ -56,22 +56,12 @@ class OpenAiService
             $payload['metadata'] = $metadata;
         }
 
-        $promptId = $promptIdOverride !== null && trim($promptIdOverride) !== ''
-            ? trim($promptIdOverride)
-            : (string) ($runtime['prompt_id'] ?? '');
+        $promptId = $promptId !== null ? trim($promptId) : '';
         if ($promptId !== '') {
             $payload['prompt'] = array('id' => $promptId);
         } else {
             // Fallback model when no prompt is configured.
             $payload['model'] = 'gpt-4.1-mini';
-        }
-
-        $vectorStoreIdsValue = $vectorStoreIdsOverride !== null && trim($vectorStoreIdsOverride) !== ''
-            ? trim($vectorStoreIdsOverride)
-            : (string) ($runtime['vector_store_ids'] ?? '');
-        $tools = $this->buildTools($vectorStoreIdsValue);
-        if (!empty($tools)) {
-            $payload['tools'] = $tools;
         }
 
         $body = $this->requestResponsesApi($payload);
@@ -102,44 +92,6 @@ class OpenAiService
             }
         }
         return $input;
-    }
-
-    public function readConfiguration(): array|WP_Error
-    {
-        $runtime = $this->settingsService->getRuntimeSettings();
-        $promptId = trim((string) ($runtime['prompt_id'] ?? ''));
-
-        if ($promptId === '') {
-            return new WP_Error('missing_prompt_id', 'Prompt-ID ist zum Neuladen der Konfiguration erforderlich.', array('status' => 400));
-        }
-
-        $userEmail = trim((string) ($runtime['user_email'] ?? ''));
-        $content = '[user-id: ' . $userEmail . '] GET_CONFIGURATION';
-
-        $response = $this->requestResponsesApi(array(
-            'prompt' => array('id' => $promptId),
-            'input' => array(
-                array(
-                    'role' => 'user',
-                    'content' => $content,
-                ),
-            ),
-            'tools' => $this->buildTools((string) ($runtime['vector_store_ids'] ?? '')),
-        ));
-
-        if (is_wp_error($response)) {
-            return $response;
-        }
-
-        $assistantText = $this->extractAssistantText($response);
-        if ($assistantText === '') {
-            return new WP_Error('openai_empty_response', 'OpenAI hat keinen Assistenten-Text zurueckgegeben.', array('status' => 502));
-        }
-
-        return array(
-            'assistant_text' => $assistantText,
-            'raw' => $response,
-        );
     }
 
     private function mapMessagesToInput(array $messages): array
@@ -220,21 +172,6 @@ class OpenAiService
         return $metadata;
     }
 
-    private function buildTools(string $vectorStoreIdsValue): array
-    {
-        $vectorStoreIds = $this->parseVectorStoreIds($vectorStoreIdsValue);
-        if (empty($vectorStoreIds)) {
-            return array();
-        }
-
-        return array(
-            array(
-                'type' => 'file_search',
-                'vector_store_ids' => $vectorStoreIds,
-            ),
-        );
-    }
-
     private function requestResponsesApi(array $payload): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
@@ -249,11 +186,6 @@ class OpenAiService
             'Authorization' => 'Bearer ' . $apiKey,
             'Content-Type' => 'application/json',
         );
-
-        $userEmail = (string) ($runtime['user_email'] ?? '');
-        if ($userEmail !== '') {
-            $headers['user-id'] = $userEmail;
-        }
 
         if ($debugEnabled) {
             $this->logOpenAiDebug('request', array(
@@ -353,20 +285,6 @@ class OpenAiService
         }
 
         return '';
-    }
-
-    private function parseVectorStoreIds(string $value): array
-    {
-        if ($value === '') {
-            return array();
-        }
-
-        $parts = array_map('trim', explode(',', $value));
-        $parts = array_filter($parts, function ($entry) {
-            return $entry !== '';
-        });
-
-        return array_values($parts);
     }
 
     private function extractAssistantText($body): string

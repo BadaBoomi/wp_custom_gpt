@@ -30,20 +30,8 @@
     var chatId = parseInt(root.getAttribute('data-chat-id') || '0', 10);
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatsPage = root.getAttribute('data-chats-page') || '';
-    var configurationEntriesRaw = root.getAttribute('data-configuration-entries') || '[]';
-    var configurationEntries = [];
     var lastMessageCount = 0;
     var shouldStickToBottom = true;
-    var selectedConfiguration = null;
-
-    try {
-        configurationEntries = JSON.parse(configurationEntriesRaw);
-        if (!Array.isArray(configurationEntries)) {
-            configurationEntries = [];
-        }
-    } catch (error) {
-        configurationEntries = [];
-    }
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
@@ -183,7 +171,7 @@
             .replace(/W&amp;W/g, 'W&W');
     }
 
-    function renderActionButtons(buttons, mode) {
+    function renderActionButtons(buttons) {
         if (!actionButtonsEl) {
             return;
         }
@@ -206,14 +194,6 @@
             el.style.cursor = 'pointer';
             el.addEventListener('click', function () {
                 messageInput.value = button.content;
-                if (mode === 'configuration') {
-                    selectedConfiguration = {
-                        label: button.label,
-                        promptId: button.promptId || '',
-                        vectorStoreId: button.vectorStoreId || '',
-                    };
-                    setStatus('Konfiguration ausgewaehlt: ' + button.label, false);
-                }
                 messageInput.focus();
             });
             actionButtonsEl.appendChild(el);
@@ -280,30 +260,6 @@
         return messageOutput.scrollHeight - messageOutput.scrollTop - messageOutput.clientHeight <= threshold;
     }
 
-    function getConfigurationButtons() {
-        return configurationEntries
-            .map(function (entry) {
-                var label = (entry && entry.label ? String(entry.label) : '').trim();
-                var content = (entry && entry.prompt ? String(entry.prompt) : '').trim();
-                var promptId = (entry && entry.promptId ? String(entry.promptId) : '').trim();
-                var vectorStoreId = (entry && entry.vectorStoreId ? String(entry.vectorStoreId) : '').trim();
-
-                if (!label || !content) {
-                    return null;
-                }
-
-                return {
-                    label: label,
-                    content: content,
-                    promptId: promptId,
-                    vectorStoreId: vectorStoreId,
-                };
-            })
-            .filter(function (item) {
-                return item !== null;
-            });
-    }
-
     function renderMessages(messages) {
         var hasNewMessages = messages.length > lastMessageCount;
         var shouldAutoScroll = hasNewMessages && shouldStickToBottom;
@@ -316,7 +272,7 @@
             empty.className = 'wpcgpt-chat-empty';
             empty.textContent = 'Noch keine Nachrichten.';
             messageOutput.appendChild(empty);
-            renderActionButtons(getConfigurationButtons(), 'configuration');
+            renderActionButtons([]);
             lastMessageCount = 0;
             shouldStickToBottom = true;
             return;
@@ -329,14 +285,7 @@
                 var extracted = extractInlineResponseButtons(contentText);
                 contentText = extracted.cleanedText;
                 if (extracted.buttons.length > 0) {
-                    latestAssistantButtons = extracted.buttons.map(function (item) {
-                        return {
-                            label: item.label,
-                            content: item.content,
-                            promptId: '',
-                            vectorStoreId: '',
-                        };
-                    });
+                    latestAssistantButtons = extracted.buttons;
                 }
             }
 
@@ -351,11 +300,7 @@
             );
         });
 
-        if (latestAssistantButtons.length > 0) {
-            renderActionButtons(latestAssistantButtons, 'response');
-        } else {
-            renderActionButtons(getConfigurationButtons(), 'configuration');
-        }
+        renderActionButtons(latestAssistantButtons);
 
         if (shouldAutoScroll) {
             messageOutput.scrollTop = messageOutput.scrollHeight;
@@ -375,15 +320,30 @@
         messageOutput.scrollTop = messageOutput.scrollHeight;
     }
 
+    function prefillConfigurationPrompt() {
+        return request('/chats/' + chatId, { method: 'GET' })
+            .then(function (chat) {
+                var configPrompt = String((chat && chat.config_prompt) || '').trim();
+                if (configPrompt && !messageInput.value.trim()) {
+                    messageInput.value = configPrompt;
+                }
+            })
+            .catch(function () {
+                /* Konfigurationsprompt ist optional. */
+            });
+    }
+
     function loadMessages() {
         setStatus('Nachrichten werden geladen...', false);
-        request('/chats/' + chatId + '/messages?limit=150', { method: 'GET' })
+        return request('/chats/' + chatId + '/messages?limit=150', { method: 'GET' })
             .then(function (messages) {
                 renderMessages(messages);
                 setStatus('Nachrichten geladen.', false);
+                return messages;
             })
             .catch(function (error) {
                 setStatus(error.message, true);
+                return [];
             });
     }
 
@@ -434,11 +394,7 @@
 
         request('/chats/' + chatId + '/send', {
             method: 'POST',
-            body: JSON.stringify({
-                message: message,
-                prompt_id: selectedConfiguration && selectedConfiguration.promptId ? selectedConfiguration.promptId : '',
-                vector_store_ids: selectedConfiguration && selectedConfiguration.vectorStoreId ? selectedConfiguration.vectorStoreId : '',
-            }),
+            body: JSON.stringify({ message: message }),
         })
             .then(function () {
                 messageInput.value = '';
@@ -463,5 +419,9 @@
     });
 
     loadRoomLabel();
-    loadMessages();
+    loadMessages().then(function (messages) {
+        if (!messages.length) {
+            prefillConfigurationPrompt();
+        }
+    });
 })();

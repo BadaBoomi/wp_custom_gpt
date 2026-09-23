@@ -27,7 +27,7 @@ class ChatRepository
         }
 
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE user_id = %d AND room_id = %d
              ORDER BY created_at DESC",
@@ -40,7 +40,14 @@ class ChatRepository
         return array_map(array($this, 'normalizeChat'), $rows ?: array());
     }
 
-    public function createChat(int $roomId, int $userId, string $title): ?array
+    public function createChat(
+        int $roomId,
+        int $userId,
+        string $title,
+        string $configLabel = '',
+        string $configPrompt = '',
+        string $configPromptId = ''
+    ): ?array
     {
         if (!$this->roomExistsForUser($roomId, $userId)) {
             return null;
@@ -55,10 +62,13 @@ class ChatRepository
                 'room_id' => $roomId,
                 'conversation_id' => null,
                 'title' => sanitize_text_field($title),
+                'config_label' => sanitize_text_field($configLabel),
+                'config_prompt' => $configPrompt,
+                'config_prompt_id' => sanitize_text_field($configPromptId),
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         $chatId = (int) $this->wpdb->insert_id;
@@ -199,7 +209,7 @@ class ChatRepository
     private function findChatForUser(int $chatId, int $userId): ?array
     {
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE id = %d AND user_id = %d
              LIMIT 1",
@@ -219,6 +229,9 @@ class ChatRepository
             'room_id' => (int) $row['room_id'],
             'title' => (string) $row['title'],
             'conversation_id' => (string) ($row['conversation_id'] ?? ''),
+            'config_label' => (string) ($row['config_label'] ?? ''),
+            'config_prompt' => (string) ($row['config_prompt'] ?? ''),
+            'config_prompt_id' => (string) ($row['config_prompt_id'] ?? ''),
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
         );

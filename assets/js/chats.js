@@ -11,10 +11,48 @@
     var refreshChatsBtn = document.getElementById('wpcgpt-refresh-chats');
     var backRoomsLink = document.getElementById('wpcgpt-back-rooms');
     var chatTitleInput = document.getElementById('wpcgpt-chat-title');
+    var configurationSelect = document.getElementById('wpcgpt-chat-configuration');
 
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatPage = root.getAttribute('data-chat-page') || '';
     var roomsPage = root.getAttribute('data-rooms-page') || '';
+    var configurationEntries = [];
+
+    try {
+        configurationEntries = JSON.parse(root.getAttribute('data-configuration-entries') || '[]');
+        if (!Array.isArray(configurationEntries)) {
+            configurationEntries = [];
+        }
+    } catch (error) {
+        configurationEntries = [];
+    }
+
+    function renderConfigurationOptions() {
+        if (!configurationSelect) {
+            return;
+        }
+
+        configurationSelect.innerHTML = '';
+
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = configurationEntries.length
+            ? 'Zweck waehlen (optional)'
+            : 'Keine Konfigurationseintraege vorhanden';
+        configurationSelect.appendChild(placeholder);
+
+        configurationEntries.forEach(function (entry) {
+            var label = String((entry && entry.label) || '').trim();
+            if (!label) {
+                return;
+            }
+
+            var option = document.createElement('option');
+            option.value = label;
+            option.textContent = label;
+            configurationSelect.appendChild(option);
+        });
+    }
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
@@ -128,7 +166,8 @@
 
         chats.forEach(function (chat) {
             var li = document.createElement('li');
-            li.textContent = chat.title + ' (ID: ' + chat.id + ')';
+            var configLabel = String(chat.config_label || '').trim();
+            li.textContent = chat.title + ' (ID: ' + chat.id + ')' + (configLabel ? ' - ' + configLabel : '');
 
             var continueBtn = document.createElement('button');
             continueBtn.type = 'button';
@@ -182,9 +221,11 @@
     createChatBtn.addEventListener('click', function () {
         var title = (chatTitleInput.value || '').trim() || 'Neuer Chat';
 
+        var configurationLabel = configurationSelect ? configurationSelect.value : '';
+
         request('/rooms/' + roomId + '/chats', {
             method: 'POST',
-            body: JSON.stringify({ title: title }),
+            body: JSON.stringify({ title: title, configuration_label: configurationLabel }),
         })
             .then(function (chat) {
                 chatTitleInput.value = '';
@@ -203,6 +244,8 @@
 
     refreshChatsBtn.addEventListener('click', loadChats);
     backRoomsLink.addEventListener('click', goBackToRooms);
+
+    renderConfigurationOptions();
 
     loadRoomLabel();
     loadChats();

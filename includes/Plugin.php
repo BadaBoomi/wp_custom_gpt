@@ -58,9 +58,9 @@ class Plugin
         $flowFileService = new FlowFileService($flowFileRepository);
         $flowRuntimeService = new FlowRuntimeService($flowCodeRepository, $flowFileService);
 
-        $settingsController = new SettingsController($settingsService, $openAiService);
+        $settingsController = new SettingsController($settingsService);
         $roomsController = new RoomsController($roomRepository);
-        $chatsController = new ChatsController($chatRepository, $roomRepository, $openAiService, $flowSessionRepository, $flowRuntimeService);
+        $chatsController = new ChatsController($chatRepository, $roomRepository, $openAiService, $flowSessionRepository, $flowRuntimeService, $settingsService);
         $flowCodeController = new FlowCodeController($flowRuntimeService, $flowFileService);
 
         $settingsController->registerRoutes();
@@ -285,11 +285,12 @@ class Plugin
 
         $roomsPage = $this->resolvePageUrl((string) $atts['rooms_page']);
         $chatPage = $this->resolvePageUrl((string) $atts['chat_page']);
+        $configurationEntriesJson = $this->encodeConfigurationEntries();
 
         wp_enqueue_script(self::CHATS_SCRIPT_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '">';
+        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-chats">Chats aktualisieren</button>';
@@ -297,6 +298,8 @@ class Plugin
         $html .= '  <p id="wpcgpt-room-label"></p>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <input id="wpcgpt-chat-title" type="text" maxlength="120" placeholder="Neuer Chat-Titel" />';
+        $html .= '    <label for="wpcgpt-chat-configuration" class="screen-reader-text">Zweck</label>';
+        $html .= '    <select id="wpcgpt-chat-configuration"></select>';
         $html .= '    <button type="button" id="wpcgpt-create-chat">Chat erstellen</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-chat-list"></ul>';
@@ -324,18 +327,12 @@ class Plugin
         ), $atts, 'wp_custom_gpt_chat');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
-        $settingsService = new SettingsService();
-        $configurationEntries = $settingsService->getConfigurationEntries();
-        $configurationEntriesJson = wp_json_encode($configurationEntries);
-        if ($configurationEntriesJson === false) {
-            $configurationEntriesJson = '[]';
-        }
 
         wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
         wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chat</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-messages">Nachrichten aktualisieren</button>';
@@ -373,20 +370,13 @@ class Plugin
         $html .= '    <p><label for="wpcgpt-api-key">API-Key (leer lassen, um den aktuellen zu behalten)</label><br />';
         $html .= '    <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
         $html .= '    <p id="wpcgpt-api-key-current"></p>';
-        $html .= '    <p><label for="wpcgpt-prompt-id">Prompt-ID</label><br />';
-        $html .= '    <input id="wpcgpt-prompt-id" type="text" maxlength="191" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p><label for="wpcgpt-vector-store-ids">Vector-Store-IDs (durch Komma getrennt)</label><br />';
-        $html .= '    <input id="wpcgpt-vector-store-ids" type="text" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p><label for="wpcgpt-user-email">Benutzer-E-Mail</label><br />';
-        $html .= '    <input id="wpcgpt-user-email" type="email" style="width:100%;max-width:640px;" /></p>';
         $html .= '    <h3>Konfigurationseintraege</h3>';
-        $html .= '    <p>Eintraege fuer die Aktionsbuttons im Chat. Prompt-ID und Vector-Store-ID sind optional und ueberschreiben die globalen Werte fuer den jeweiligen Eintrag.</p>';
+        $html .= '    <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
         $html .= '    <table id="wpcgpt-configuration-table" style="width:100%;max-width:1100px;border-collapse:collapse;">';
         $html .= '      <thead><tr>';
         $html .= '        <th style="text-align:left;">Zweck</th>';
         $html .= '        <th style="text-align:left;">Prompt</th>';
         $html .= '        <th style="text-align:left;">Prompt-ID</th>';
-        $html .= '        <th style="text-align:left;">Vector-Store-ID</th>';
         $html .= '        <th></th>';
         $html .= '      </tr></thead>';
         $html .= '      <tbody id="wpcgpt-configuration-rows"></tbody>';
@@ -395,12 +385,19 @@ class Plugin
         $html .= '    <p><label for="wpcgpt-starters">Starter (Markdown-Tabelle, wird aus den Eintraegen erzeugt)</label><br />';
         $html .= '    <textarea id="wpcgpt-starters" rows="6" readonly style="width:100%;max-width:1100px;background:#f6f7f7;"></textarea></p>';
         $html .= '    <p><button type="submit">Einstellungen speichern</button></p>';
-        $html .= '    <p><button type="button" id="wpcgpt-reload-configuration">Konfiguration neu laden (GET_CONFIGURATION)</button></p>';
         $html .= '  </form>';
         $html .= '  <p id="wpcgpt-settings-status" aria-live="polite"></p>';
         $html .= '</div>';
 
         return $html;
+    }
+
+    private function encodeConfigurationEntries(): string
+    {
+        $settingsService = new SettingsService();
+        $encoded = wp_json_encode($settingsService->getConfigurationEntries());
+
+        return is_string($encoded) ? $encoded : '[]';
     }
 
     private function resolvePageUrl(string $target): string

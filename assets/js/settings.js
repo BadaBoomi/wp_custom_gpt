@@ -7,11 +7,7 @@
     var form = document.getElementById('wpcgpt-settings-form');
     var statusEl = document.getElementById('wpcgpt-settings-status');
     var apiKeyInput = document.getElementById('wpcgpt-api-key');
-    var promptIdInput = document.getElementById('wpcgpt-prompt-id');
-    var vectorStoreIdsInput = document.getElementById('wpcgpt-vector-store-ids');
-    var userEmailInput = document.getElementById('wpcgpt-user-email');
     var startersInput = document.getElementById('wpcgpt-starters');
-    var reloadConfigurationBtn = document.getElementById('wpcgpt-reload-configuration');
     var apiKeyCurrentEl = document.getElementById('wpcgpt-api-key-current');
     var configurationRowsEl = document.getElementById('wpcgpt-configuration-rows');
     var configurationAddBtn = document.getElementById('wpcgpt-configuration-add');
@@ -20,7 +16,6 @@
         { key: 'label', type: 'text', placeholder: 'Zweck' },
         { key: 'prompt', type: 'textarea', placeholder: 'Prompt' },
         { key: 'promptId', type: 'text', placeholder: 'pmpt_...' },
-        { key: 'vectorStoreId', type: 'text', placeholder: 'vs_...' },
     ];
 
     function createConfigurationRow(entry) {
@@ -134,9 +129,6 @@
     }
 
     function fillForm(data) {
-        promptIdInput.value = data.prompt_id || '';
-        vectorStoreIdsInput.value = data.vector_store_ids || '';
-        userEmailInput.value = data.user_email || '';
         startersInput.value = data.starters || '';
         renderConfigurationRows(data.configuration_entries || []);
 
@@ -163,9 +155,6 @@
         event.preventDefault();
 
         var payload = {
-            prompt_id: promptIdInput.value.trim(),
-            vector_store_ids: vectorStoreIdsInput.value.trim(),
-            user_email: userEmailInput.value.trim(),
             configuration_entries: collectConfigurationEntries(),
         };
 
@@ -186,20 +175,6 @@
                 setStatus(error.message, true);
             });
     });
-
-    if (reloadConfigurationBtn) {
-        reloadConfigurationBtn.addEventListener('click', function () {
-            setStatus('Konfiguration aus GET_CONFIGURATION wird neu geladen...', false);
-            request('POST', '/settings/reload-configuration')
-                .then(function (data) {
-                    fillForm(data);
-                    setStatus('Konfiguration neu geladen und gespeichert.', false);
-                })
-                .catch(function (error) {
-                    setStatus(error.message, true);
-                });
-        });
-    }
 
     if (configurationAddBtn) {
         configurationAddBtn.addEventListener('click', function () {
