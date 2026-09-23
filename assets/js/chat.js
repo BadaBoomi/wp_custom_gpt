@@ -4,6 +4,20 @@
         return;
     }
 
+    var USER_AVATAR_SVG =
+        '<svg viewBox="0 0 40 40" width="40" height="40" focusable="false">' +
+        '<circle cx="20" cy="15" r="6.5" fill="#7d8ea6"></circle>' +
+        '<path d="M8 33c0-6.2 5.4-10.5 12-10.5S32 26.8 32 33z" fill="#7d8ea6"></path>' +
+        '</svg>';
+
+    var ASSISTANT_AVATAR_SVG =
+        '<svg viewBox="0 0 40 40" width="40" height="40" focusable="false">' +
+        '<rect x="9" y="11" width="22" height="19" rx="5" fill="#33404f"></rect>' +
+        '<circle cx="15.5" cy="19" r="3.2" fill="#ffffff"></circle>' +
+        '<circle cx="24.5" cy="19" r="3.2" fill="#ffffff"></circle>' +
+        '<rect x="14" y="25" width="12" height="2.4" rx="1.2" fill="#ffffff"></rect>' +
+        '</svg>';
+
     var messageOutput = document.getElementById('wpcgpt-message-output');
     var statusEl = document.getElementById('wpcgpt-status');
     var actionButtonsEl = document.getElementById('wpcgpt-action-buttons');
@@ -205,6 +219,61 @@
         });
     }
 
+    function formatMessageTime(rawValue) {
+        var value = String(rawValue || '').trim();
+        if (!value) {
+            return '';
+        }
+
+        var normalized = value.replace(' ', 'T');
+        if (!/(Z|[+-]\d{2}:?\d{2})$/.test(normalized)) {
+            normalized += 'Z';
+        }
+
+        var date = new Date(normalized);
+        if (isNaN(date.getTime())) {
+            return '';
+        }
+
+        var hours = String(date.getHours()).padStart(2, '0');
+        var minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return hours + ':' + minutes;
+    }
+
+    function createMessageRow(role, contentText, timeText, isPending) {
+        var row = document.createElement('div');
+        row.className = 'wpcgpt-chat-row wpcgpt-chat-row--' + (role === 'assistant' ? 'assistant' : 'user');
+        if (isPending) {
+            row.className += ' wpcgpt-chat-row--pending';
+        }
+
+        var avatar = document.createElement('div');
+        avatar.className = 'wpcgpt-chat-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.innerHTML = role === 'assistant' ? ASSISTANT_AVATAR_SVG : USER_AVATAR_SVG;
+
+        var bubble = document.createElement('div');
+        bubble.className = 'wpcgpt-chat-bubble';
+
+        var text = document.createElement('div');
+        text.className = 'wpcgpt-chat-text';
+        text.textContent = contentText;
+        bubble.appendChild(text);
+
+        if (timeText) {
+            var time = document.createElement('div');
+            time.className = 'wpcgpt-chat-time';
+            time.textContent = timeText;
+            bubble.appendChild(time);
+        }
+
+        row.appendChild(avatar);
+        row.appendChild(bubble);
+
+        return row;
+    }
+
     function isNearBottom() {
         var threshold = 16;
         return messageOutput.scrollHeight - messageOutput.scrollTop - messageOutput.clientHeight <= threshold;
@@ -241,8 +310,8 @@
 
         if (!messages.length) {
             var empty = document.createElement('div');
+            empty.className = 'wpcgpt-chat-empty';
             empty.textContent = 'Noch keine Nachrichten.';
-            empty.style.color = '#6a737d';
             messageOutput.appendChild(empty);
             renderActionButtons(getConfigurationButtons(), 'configuration');
             lastMessageCount = 0;
@@ -273,24 +342,9 @@
                 return;
             }
 
-            var wrapper = document.createElement('div');
-            wrapper.style.marginBottom = '10px';
-
-            var role = document.createElement('div');
-            role.textContent = String(message.role || '').toUpperCase();
-            role.style.fontWeight = '600';
-            role.style.fontSize = '12px';
-            role.style.color = message.role === 'assistant' ? '#0a58ca' : '#1f2328';
-
-            var content = document.createElement('div');
-            content.style.whiteSpace = 'pre-wrap';
-            content.style.lineHeight = '1.45';
-            content.style.padding = '6px 0';
-            content.textContent = contentText;
-
-            wrapper.appendChild(role);
-            wrapper.appendChild(content);
-            messageOutput.appendChild(wrapper);
+            messageOutput.appendChild(
+                createMessageRow(message.role, contentText, formatMessageTime(message.created_at), false)
+            );
         });
 
         if (latestAssistantButtons.length > 0) {
@@ -311,26 +365,9 @@
             return;
         }
 
-        var wrapper = document.createElement('div');
-        wrapper.style.marginBottom = '10px';
-        wrapper.setAttribute('data-pending-user-message', '1');
-
-        var role = document.createElement('div');
-        role.textContent = 'USER';
-        role.style.fontWeight = '600';
-        role.style.fontSize = '12px';
-        role.style.color = '#1f2328';
-
-        var content = document.createElement('div');
-        content.style.whiteSpace = 'pre-wrap';
-        content.style.lineHeight = '1.45';
-        content.style.padding = '6px 0';
-        content.style.opacity = '0.75';
-        content.textContent = contentText;
-
-        wrapper.appendChild(role);
-        wrapper.appendChild(content);
-        messageOutput.appendChild(wrapper);
+        var row = createMessageRow('user', contentText, formatMessageTime(new Date().toISOString()), true);
+        row.setAttribute('data-pending-user-message', '1');
+        messageOutput.appendChild(row);
         messageOutput.scrollTop = messageOutput.scrollHeight;
     }
 

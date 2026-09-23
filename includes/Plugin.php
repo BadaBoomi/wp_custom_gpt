@@ -24,6 +24,7 @@ class Plugin
     private const CHAT_SCRIPT_HANDLE = 'wpcgpt-chat-frontend';
     private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
     private const FLOWS_ADMIN_SCRIPT_HANDLE = 'wpcgpt-flows-admin';
+    private const CHAT_STYLE_HANDLE = 'wpcgpt-chat-frontend';
 
     public static function activate(): void
     {
@@ -103,6 +104,13 @@ class Plugin
             array(),
             WPCGPT_PLUGIN_VERSION,
             true
+        );
+
+        wp_register_style(
+            self::CHAT_STYLE_HANDLE,
+            WPCGPT_PLUGIN_URL . 'assets/css/chat.css',
+            array(),
+            WPCGPT_PLUGIN_VERSION
         );
 
         wp_register_script(
@@ -324,6 +332,7 @@ class Plugin
         }
 
         wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
+        wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
         $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
@@ -332,7 +341,7 @@ class Plugin
         $html .= '    <button type="button" id="wpcgpt-refresh-messages">Nachrichten aktualisieren</button>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"></p>';
-        $html .= '  <div id="wpcgpt-message-output" style="width:100%;max-width:760px;height:360px;overflow-y:auto;border:1px solid #d0d7de;border-radius:8px;padding:12px;background:#ffffff;"></div>';
+        $html .= '  <div id="wpcgpt-message-output" class="wpcgpt-chat-window"></div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:760px;"></div>';
         $html .= '  </div>';
