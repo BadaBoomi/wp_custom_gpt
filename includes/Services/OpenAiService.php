@@ -26,8 +26,7 @@ class OpenAiService
 
         $input = $this->mapMessagesToInput($messages);
 
-        // Präfix zur ersten User-Nachricht hinzufügen (Ziel: "Im Kontext Hugo - ...")
-        $input = $this->prependContextPrefixToFirstUserMessage($input, '');
+
 
         $normalizedAttributes = $this->normalizeAttributesForContext(
             isset($requestContext['room_attributes']) && is_array($requestContext['room_attributes'])
@@ -35,12 +34,13 @@ class OpenAiService
                 : array()
         );
         $contextMessage = $this->buildAttributesContextMessage($normalizedAttributes);
+        // Kontext als Präfix in die erste USER-Message einfügen (statt als system-Message)
         if ($contextMessage !== '') {
-            array_unshift($input, array(
-                'role' => 'system',
-                'content' => $contextMessage,
-            ));
+            $input = $this->prependContextPrefixToFirstUserMessage($input, $contextMessage . "\n\n");
         }
+
+        // Präfix zur ersten User-Nachricht hinzufügen (Ziel: "Im Kontext Hugo - ...")
+        $input = $this->prependContextPrefixToFirstUserMessage($input, '');
 
         $payload = array(
             'input' => $input,
