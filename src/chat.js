@@ -6,6 +6,12 @@ import DOMPurify from 'dompurify';
         return;
     }
 
+    // Verhindern, dass das Skript mehrfach wirkt
+    if (root.__wpcgptChatInitialized) {
+        return;
+    }
+    root.__wpcgptChatInitialized = true;
+
     var markdown = new MarkdownIt({
         html: false,
         breaks: true,
