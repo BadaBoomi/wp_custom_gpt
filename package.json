@@ -1,0 +1,30 @@
+{
+  "name": "wp_custom_gpt",
+  "version": "1.0.0",
+  "description": "WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild src/chat.js --bundle --minify --sourcemap --platform=browser --format=iife --outfile=assets/js/chat.js",
+    "build:dev": "esbuild src/chat.js --bundle --sourcemap --platform=browser --format=iife --outfile=assets/js/chat.js",
+    "watch": "esbuild src/chat.js --bundle --sourcemap --platform=browser --format=iife --outfile=assets/js/chat.js --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BadaBoomi/wp_custom_gpt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BadaBoomi/wp_custom_gpt/issues"
+  },
+  "homepage": "https://github.com/BadaBoomi/wp_custom_gpt#readme",
+  "dependencies": {
+    "dompurify": "^3.4.16",
+    "markdown-it": "^15.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

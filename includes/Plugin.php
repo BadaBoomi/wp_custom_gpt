@@ -82,44 +82,63 @@ class Plugin
 
     public function registerAssets(): void
     {
-        wp_register_script(
-            self::ROOMS_SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/rooms.js',
-            array(),
-            WPCGPT_PLUGIN_VERSION,
-            true
-        );
+        $chatScriptPath = WPCGPT_PLUGIN_DIR . 'assets/js/chat.js';
+        $chatScriptUrl  = WPCGPT_PLUGIN_URL . 'assets/js/chat.js';
 
-        wp_register_script(
-            self::CHATS_SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/chats.js',
-            array(),
-            WPCGPT_PLUGIN_VERSION,
-            true
-        );
+        $chatScriptVersion = file_exists($chatScriptPath)
+        ? (string) filemtime($chatScriptPath)
+        : WPCGPT_PLUGIN_VERSION;
 
-        wp_register_script(
-            self::CHAT_SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/chat.js',
-            array(),
-            WPCGPT_PLUGIN_VERSION,
-            true
-        );
+    wp_register_script(
+        self::ROOMS_SCRIPT_HANDLE,
+        WPCGPT_PLUGIN_URL . 'assets/js/rooms.js',
+        array(),
+        WPCGPT_PLUGIN_VERSION,
+        array(
+            'in_footer' => true,
+            'strategy'   => 'defer',
+        )
+    );
 
-        wp_register_style(
-            self::CHAT_STYLE_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/css/chat.css',
-            array(),
-            WPCGPT_PLUGIN_VERSION
-        );
+    wp_register_script(
+        self::CHATS_SCRIPT_HANDLE,
+        WPCGPT_PLUGIN_URL . 'assets/js/chats.js',
+        array(),
+        WPCGPT_PLUGIN_VERSION,
+        array(
+            'in_footer' => true,
+            'strategy'   => 'defer',
+        )
+    );
 
-        wp_register_script(
-            self::SETTINGS_SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/settings.js',
-            array(),
-            WPCGPT_PLUGIN_VERSION,
-            true
-        );
+    wp_register_script(
+        self::CHAT_SCRIPT_HANDLE,
+        $chatScriptUrl,
+        array(),
+        $chatScriptVersion,
+        array(
+            'in_footer' => true,
+            'strategy'   => 'defer',
+        )
+    );
+
+    wp_register_style(
+        self::CHAT_STYLE_HANDLE,
+        WPCGPT_PLUGIN_URL . 'assets/css/chat.css',
+        array(),
+        WPCGPT_PLUGIN_VERSION
+    );
+
+    wp_register_script(
+        self::SETTINGS_SCRIPT_HANDLE,
+        WPCGPT_PLUGIN_URL . 'assets/js/settings.js',
+        array(),
+        WPCGPT_PLUGIN_VERSION,
+        array(
+            'in_footer' => true,
+            'strategy'   => 'defer',
+        )
+    );
 
         wp_localize_script(self::ROOMS_SCRIPT_HANDLE, 'WPCGPT_ROOMS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),

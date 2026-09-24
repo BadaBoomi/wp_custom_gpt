@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Custom GPT
  * Description: Brings core features from pwa_custom_gpt into WordPress.
- * Version: 0.8.3
+ * Version: 0.9.4
  * Author: Heiko
  */
 
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('WPCGPT_PLUGIN_VERSION')) {
-    define('WPCGPT_PLUGIN_VERSION', '0.8.3');
+    define('WPCGPT_PLUGIN_VERSION', '0.9.4');
 }
 
 if (!defined('WPCGPT_PLUGIN_FILE')) {
@@ -25,6 +25,34 @@ if (!defined('WPCGPT_PLUGIN_DIR')) {
 if (!defined('WPCGPT_PLUGIN_URL')) {
     define('WPCGPT_PLUGIN_URL', plugin_dir_url(__FILE__));
 }
+function wpcgpt_enqueue_frontend_assets() {
+    // Optional: Nur auf der Seite laden, auf der der Chat verwendet wird.
+    // Diese Bedingung musst du an deine Website anpassen.
+    //
+    // if (!is_page('chat')) {
+    //     return;
+    // }
+
+    $script_path = WPCGPT_PLUGIN_DIR . 'assets/js/chat.js';
+    $script_url  = WPCGPT_PLUGIN_URL . 'assets/js/chat.js';
+
+    // Versionsnummer automatisch aus dem Änderungsdatum der Datei erzeugen.
+    $script_version = file_exists($script_path)
+        ? filemtime($script_path)
+        : WPCGPT_PLUGIN_VERSION;
+
+    wp_enqueue_script(
+        'wpcgpt-chats',
+        $script_url,
+        array(),
+        $script_version,
+        array(
+            'in_footer' => true,
+            'strategy'   => 'defer',
+        )
+    );
+}
+add_action('wp_enqueue_scripts', 'wpcgpt_enqueue_frontend_assets');
 
 require_once WPCGPT_PLUGIN_DIR . 'includes/Database/MigrationRunner.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/SettingsService.php';
