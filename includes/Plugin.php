@@ -25,6 +25,7 @@ class Plugin
     private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
     private const FLOWS_ADMIN_SCRIPT_HANDLE = 'wpcgpt-flows-admin';
     private const CHAT_STYLE_HANDLE = 'wpcgpt-chat-frontend';
+    private const COMMON_STYLE_HANDLE = 'wpcgpt-common-frontend';
 
     public static function activate(): void
     {
@@ -124,6 +125,13 @@ class Plugin
 
     wp_register_style(
         self::CHAT_STYLE_HANDLE,
+        WPCGPT_PLUGIN_URL . 'assets/css/chat.css',
+        array(),
+        WPCGPT_PLUGIN_VERSION
+    );
+
+    wp_register_style(
+        self::COMMON_STYLE_HANDLE,
         WPCGPT_PLUGIN_URL . 'assets/css/chat.css',
         array(),
         WPCGPT_PLUGIN_VERSION
@@ -266,11 +274,14 @@ class Plugin
         ), $atts, 'wp_custom_gpt_rooms');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
+        $frontendUiConfig = $this->getFrontendUiConfig();
+        $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
 
         wp_enqueue_script(self::ROOMS_SCRIPT_HANDLE);
+        wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" data-chats-page="' . esc_attr($chatsPage) . '">';
+        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Raumverwaltung</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh">Raeume aktualisieren</button>';
@@ -305,11 +316,14 @@ class Plugin
         $roomsPage = $this->resolvePageUrl((string) $atts['rooms_page']);
         $chatPage = $this->resolvePageUrl((string) $atts['chat_page']);
         $configurationEntriesJson = $this->encodeConfigurationEntries();
+        $frontendUiConfig = $this->getFrontendUiConfig();
+        $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
 
         wp_enqueue_script(self::CHATS_SCRIPT_HANDLE);
+        wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
+        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-chats">Chats aktualisieren</button>';
@@ -346,12 +360,21 @@ class Plugin
         ), $atts, 'wp_custom_gpt_chat');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
+        $frontendUiConfig = $this->getFrontendUiConfig();
+        $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
+        $assistantIconUrl = (string) $frontendUiConfig['assistant_icon_url'];
+
+        $chatRepository = new ChatRepository();
+        $chat = $chatRepository->getChatForUser($chatId, (int) get_current_user_id());
+        if (is_array($chat) && !empty($chat['config_icon_url'])) {
+            $assistantIconUrl = esc_url_raw((string) $chat['config_icon_url']);
+        }
 
         wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
         wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chat</h2>';
         $html .= '    <button type="button" id="wpcgpt-refresh-messages">Nachrichten aktualisieren</button>';
@@ -381,28 +404,70 @@ class Plugin
         }
 
         wp_enqueue_script(self::SETTINGS_SCRIPT_HANDLE);
+        wp_enqueue_style(self::COMMON_STYLE_HANDLE);
+        wp_enqueue_media();
+
+        $settingsService = new SettingsService();
+        $fontFamilies = $settingsService->getFontFamilies();
+
+        $fontOptionsHtml = '';
+        foreach ($fontFamilies as $fontValue => $fontLabel) {
+            $fontOptionsHtml .= '<option value="' . esc_attr((string) $fontValue) . '">' . esc_html((string) $fontLabel) . '</option>';
+        }
 
         $html = '';
         $html .= '<div id="wpcgpt-settings-app" class="wpcgpt-settings-app">';
         $html .= '  <h2>WP Custom GPT Einstellungen</h2>';
+        $html .= '  <div class="wpcgpt-settings-tabs" role="tablist" aria-label="Einstellungsbereiche">';
+        $html .= '    <button type="button" id="wpcgpt-tab-general" class="wpcgpt-tab-button is-active" data-tab="general" role="tab" aria-selected="true">Allgemein</button>';
+        $html .= '    <button type="button" id="wpcgpt-tab-appearance" class="wpcgpt-tab-button" data-tab="appearance" role="tab" aria-selected="false">Farben und Schriften</button>';
+        $html .= '  </div>';
         $html .= '  <form id="wpcgpt-settings-form">';
-        $html .= '    <p><label for="wpcgpt-api-key">API-Key (leer lassen, um den aktuellen zu behalten)</label><br />';
-        $html .= '    <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
-        $html .= '    <p id="wpcgpt-api-key-current"></p>';
-        $html .= '    <h3>Konfigurationseintraege</h3>';
-        $html .= '    <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
-        $html .= '    <table id="wpcgpt-configuration-table" style="width:100%;max-width:1100px;border-collapse:collapse;">';
-        $html .= '      <thead><tr>';
-        $html .= '        <th style="text-align:left;">Zweck</th>';
-        $html .= '        <th style="text-align:left;">Prompt</th>';
-        $html .= '        <th style="text-align:left;">Prompt-ID</th>';
-        $html .= '        <th></th>';
-        $html .= '      </tr></thead>';
-        $html .= '      <tbody id="wpcgpt-configuration-rows"></tbody>';
-        $html .= '    </table>';
-        $html .= '    <p><button type="button" id="wpcgpt-configuration-add">Eintrag hinzufuegen</button></p>';
-        $html .= '    <p><label for="wpcgpt-starters">Starter (Markdown-Tabelle, wird aus den Eintraegen erzeugt)</label><br />';
-        $html .= '    <textarea id="wpcgpt-starters" rows="6" readonly style="width:100%;max-width:1100px;background:#f6f7f7;"></textarea></p>';
+        $html .= '    <section id="wpcgpt-settings-tab-general" class="wpcgpt-settings-tab-panel is-active" data-tab-panel="general" role="tabpanel" aria-labelledby="wpcgpt-tab-general">';
+        $html .= '      <p><label for="wpcgpt-api-key">API-Key (leer lassen, um den aktuellen zu behalten)</label><br />';
+        $html .= '      <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
+        $html .= '      <p id="wpcgpt-api-key-current"></p>';
+        $html .= '      <h3>Konfigurationseintraege</h3>';
+        $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
+        $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1100px;border-collapse:collapse;">';
+        $html .= '        <thead><tr>';
+        $html .= '          <th style="text-align:left;">Zweck</th>';
+        $html .= '          <th style="text-align:left;">Prompt</th>';
+        $html .= '          <th style="text-align:left;">Prompt-ID</th>';
+        $html .= '          <th style="text-align:left;">Icon</th>';
+        $html .= '          <th></th>';
+        $html .= '        </tr></thead>';
+        $html .= '        <tbody id="wpcgpt-configuration-rows"></tbody>';
+        $html .= '      </table>';
+        $html .= '      <p><button type="button" id="wpcgpt-configuration-add">Eintrag hinzufuegen</button></p>';
+        $html .= '    </section>';
+        $html .= '    <section id="wpcgpt-settings-tab-appearance" class="wpcgpt-settings-tab-panel" data-tab-panel="appearance" role="tabpanel" aria-labelledby="wpcgpt-tab-appearance" hidden>';
+        $html .= '      <h3>Darstellung fuer Chat, Chatverwaltung und Raumverwaltung</h3>';
+        $html .= '      <div class="wpcgpt-icon-picker" id="wpcgpt-default-assistant-icon-picker">';
+        $html .= '        <label><strong>Standard-Icon Agent</strong></label>';
+        $html .= '        <input id="wpcgpt-assistant-icon-id" type="hidden" value="0" />';
+        $html .= '        <div id="wpcgpt-assistant-icon-preview" class="wpcgpt-icon-preview" aria-live="polite"></div>';
+        $html .= '        <p><button type="button" id="wpcgpt-assistant-icon-upload">Icon hochladen/waehlen</button> <button type="button" id="wpcgpt-assistant-icon-remove">Icon entfernen</button></p>';
+        $html .= '        <p class="description">Dieses Icon wird fuer alle Chats genutzt, sofern beim ausgewaehlten Konfigurationseintrag kein eigenes Icon hinterlegt ist.</p>';
+        $html .= '      </div>';
+        $html .= '      <div class="wpcgpt-theme-grid">';
+        $html .= '        <p><label for="wpcgpt-theme-font-family">Schriftfamilie</label><br /><select id="wpcgpt-theme-font-family" style="width:100%;">' . $fontOptionsHtml . '</select></p>';
+        $html .= '        <p><label for="wpcgpt-theme-font-size">Basisschriftgroesse</label><br /><input id="wpcgpt-theme-font-size" type="text" placeholder="15px" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-text">Textfarbe</label><br /><input id="wpcgpt-theme-color-text" type="color" value="#1f2933" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-muted">Neben-/Hinweistext</label><br /><input id="wpcgpt-theme-color-muted" type="color" value="#5f6b76" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-background">Seitenhintergrund</label><br /><input id="wpcgpt-theme-color-background" type="color" value="#f3f6fb" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-surface">Panel-Hintergrund</label><br /><input id="wpcgpt-theme-color-surface" type="color" value="#ffffff" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-border">Rahmenfarbe</label><br /><input id="wpcgpt-theme-color-border" type="color" value="#cfd8e3" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-accent">Akzentfarbe (Buttons/Links)</label><br /><input id="wpcgpt-theme-color-accent" type="color" value="#0a58ca" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-accent-text">Akzent-Textfarbe</label><br /><input id="wpcgpt-theme-color-accent-text" type="color" value="#ffffff" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-success">Statusfarbe Erfolg</label><br /><input id="wpcgpt-theme-color-success" type="color" value="#2d6a4f" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-error">Statusfarbe Fehler</label><br /><input id="wpcgpt-theme-color-error" type="color" value="#b00020" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-chat-window">Chatfenster-Hintergrund</label><br /><input id="wpcgpt-theme-color-chat-window" type="color" value="#4c5f7d" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-user-bubble">Bubble Benutzer</label><br /><input id="wpcgpt-theme-color-user-bubble" type="color" value="#e7f0fb" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-assistant-bubble">Bubble Agent</label><br /><input id="wpcgpt-theme-color-assistant-bubble" type="color" value="#cbe3f8" style="width:100%;" /></p>';
+        $html .= '        <p><label for="wpcgpt-theme-color-assistant-avatar-bg">Avatar-Hintergrund Agent</label><br /><input id="wpcgpt-theme-color-assistant-avatar-bg" type="color" value="#f3c64b" style="width:100%;" /></p>';
+        $html .= '      </div>';
+        $html .= '    </section>';
         $html .= '    <p><button type="submit">Einstellungen speichern</button></p>';
         $html .= '  </form>';
         $html .= '  <p id="wpcgpt-settings-status" aria-live="polite"></p>';
@@ -417,6 +482,53 @@ class Plugin
         $encoded = wp_json_encode($settingsService->getConfigurationEntries());
 
         return is_string($encoded) ? $encoded : '[]';
+    }
+
+    private function getFrontendUiConfig(): array
+    {
+        $settingsService = new SettingsService();
+        $runtime = $settingsService->getRuntimeSettings();
+
+        return array(
+            'assistant_icon_url' => esc_url_raw((string) ($runtime['assistant_icon_url'] ?? '')),
+            'theme' => $settingsService->getUiThemeSettings(),
+        );
+    }
+
+    /**
+     * @param array<string, string> $theme
+     */
+    private function buildThemeStyleAttribute(array $theme): string
+    {
+        $map = array(
+            'font_family' => '--wpcgpt-font-family',
+            'font_size' => '--wpcgpt-font-size',
+            'color_text' => '--wpcgpt-color-text',
+            'color_muted' => '--wpcgpt-color-muted',
+            'color_background' => '--wpcgpt-color-background',
+            'color_surface' => '--wpcgpt-color-surface',
+            'color_border' => '--wpcgpt-color-border',
+            'color_accent' => '--wpcgpt-color-accent',
+            'color_accent_text' => '--wpcgpt-color-accent-text',
+            'color_success' => '--wpcgpt-color-success',
+            'color_error' => '--wpcgpt-color-error',
+            'color_chat_window' => '--wpcgpt-color-chat-window',
+            'color_user_bubble' => '--wpcgpt-color-user-bubble',
+            'color_assistant_bubble' => '--wpcgpt-color-assistant-bubble',
+            'color_assistant_avatar_bg' => '--wpcgpt-color-assistant-avatar-bg',
+        );
+
+        $parts = array();
+        foreach ($map as $key => $cssVar) {
+            $value = isset($theme[$key]) ? trim((string) $theme[$key]) : '';
+            if ($value === '') {
+                continue;
+            }
+
+            $parts[] = $cssVar . ':' . $value;
+        }
+
+        return implode(';', $parts);
     }
 
     private function resolvePageUrl(string $target): string

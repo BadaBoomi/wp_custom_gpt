@@ -27,7 +27,7 @@ class ChatRepository
         }
 
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, config_icon_url, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE user_id = %d AND room_id = %d
              ORDER BY created_at DESC",
@@ -46,7 +46,8 @@ class ChatRepository
         string $title,
         string $configLabel = '',
         string $configPrompt = '',
-        string $configPromptId = ''
+        string $configPromptId = '',
+        string $configIconUrl = ''
     ): ?array
     {
         if (!$this->roomExistsForUser($roomId, $userId)) {
@@ -65,10 +66,11 @@ class ChatRepository
                 'config_label' => sanitize_text_field($configLabel),
                 'config_prompt' => $configPrompt,
                 'config_prompt_id' => sanitize_text_field($configPromptId),
+                'config_icon_url' => esc_url_raw($configIconUrl),
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         $chatId = (int) $this->wpdb->insert_id;
@@ -209,7 +211,7 @@ class ChatRepository
     private function findChatForUser(int $chatId, int $userId): ?array
     {
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, config_icon_url, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE id = %d AND user_id = %d
              LIMIT 1",
@@ -232,6 +234,7 @@ class ChatRepository
             'config_label' => (string) ($row['config_label'] ?? ''),
             'config_prompt' => (string) ($row['config_prompt'] ?? ''),
             'config_prompt_id' => (string) ($row['config_prompt_id'] ?? ''),
+            'config_icon_url' => esc_url_raw((string) ($row['config_icon_url'] ?? '')),
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
         );

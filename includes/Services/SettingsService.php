@@ -7,15 +7,73 @@ class SettingsService
     private const OPTION_API_KEY = 'wpcgpt_api_key';
     private const OPTION_STARTERS = 'wpcgpt_starters';
     private const OPTION_OPENAI_DEBUG_ENABLED = 'wpcgpt_openai_debug_enabled';
+    private const OPTION_ASSISTANT_ICON_URL = 'wpcgpt_assistant_icon_url';
+    private const OPTION_ASSISTANT_ICON_ID = 'wpcgpt_assistant_icon_id';
+    private const OPTION_CONFIGURATION_ENTRIES = 'wpcgpt_configuration_entries';
+    private const OPTION_UI_THEME = 'wpcgpt_ui_theme';
+
+    /**
+     * @return array<string, string>
+     */
+    public function getFontFamilies(): array
+    {
+        return array(
+            'Segoe UI, Tahoma, sans-serif' => 'Segoe UI',
+            'Arial, Helvetica, sans-serif' => 'Arial',
+            'Verdana, Geneva, sans-serif' => 'Verdana',
+            'Trebuchet MS, Helvetica, sans-serif' => 'Trebuchet MS',
+            'Georgia, Times New Roman, serif' => 'Georgia',
+            'Times New Roman, Times, serif' => 'Times New Roman',
+            'Garamond, Baskerville, serif' => 'Garamond',
+            'Courier New, Courier, monospace' => 'Courier New',
+            'Consolas, Monaco, monospace' => 'Consolas',
+            'Lucida Console, Monaco, monospace' => 'Lucida Console',
+            'system-ui, -apple-system, BlinkMacSystemFont, sans-serif' => 'System UI',
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getDefaultUiTheme(): array
+    {
+        return array(
+            'font_family' => 'Segoe UI, Tahoma, sans-serif',
+            'font_size' => '15px',
+            'color_text' => '#1f2933',
+            'color_muted' => '#5f6b76',
+            'color_background' => '#f3f6fb',
+            'color_surface' => '#ffffff',
+            'color_border' => '#cfd8e3',
+            'color_accent' => '#0a58ca',
+            'color_accent_text' => '#ffffff',
+            'color_success' => '#2d6a4f',
+            'color_error' => '#b00020',
+            'color_chat_window' => '#4c5f7d',
+            'color_user_bubble' => '#e7f0fb',
+            'color_assistant_bubble' => '#cbe3f8',
+            'color_assistant_avatar_bg' => '#f3c64b',
+        );
+    }
 
     public function getSettingsForAdmin(): array
     {
         $apiKey = (string) get_option(self::OPTION_API_KEY, '');
+        $assistantIconId = (int) get_option(self::OPTION_ASSISTANT_ICON_ID, 0);
+        $assistantIconUrl = $this->resolveAttachmentUrl($assistantIconId);
+        if ($assistantIconUrl === '') {
+            // Backward compatibility with previous URL-based setting.
+            $assistantIconUrl = esc_url_raw((string) get_option(self::OPTION_ASSISTANT_ICON_URL, ''));
+        }
 
         return array(
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
             'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
             'configuration_entries' => $this->getConfigurationEntries(),
+            'assistant_icon_id' => $assistantIconId,
+            'assistant_icon_url' => esc_url_raw($assistantIconUrl),
+            'ui_theme' => $this->getUiThemeSettings(),
+            'font_families' => $this->getFontFamilies(),
             'has_api_key' => $apiKey !== '',
             'api_key_masked' => $this->maskApiKey($apiKey),
         );
@@ -39,22 +97,85 @@ class SettingsService
             update_option(self::OPTION_OPENAI_DEBUG_ENABLED, $enabled, false);
         }
 
+        if (array_key_exists('assistant_icon_id', $payload)) {
+            $assistantIconId = max(0, (int) $payload['assistant_icon_id']);
+            update_option(self::OPTION_ASSISTANT_ICON_ID, $assistantIconId, false);
+            // Keep URL option aligned for smooth backward compatibility.
+            update_option(self::OPTION_ASSISTANT_ICON_URL, $this->resolveAttachmentUrl($assistantIconId), false);
+        } elseif (array_key_exists('assistant_icon_url', $payload)) {
+            // Graceful fallback if an older client still sends a URL.
+            $assistantIconUrl = esc_url_raw(trim((string) $payload['assistant_icon_url']));
+            update_option(self::OPTION_ASSISTANT_ICON_URL, $assistantIconUrl, false);
+            update_option(self::OPTION_ASSISTANT_ICON_ID, 0, false);
+        }
+
+        if (array_key_exists('ui_theme', $payload) && is_array($payload['ui_theme'])) {
+            update_option(self::OPTION_UI_THEME, $this->normalizeUiThemeSettings($payload['ui_theme']), false);
+        }
+
         return $this->getSettingsForAdmin();
     }
 
     public function getRuntimeSettings(): array
     {
+        $assistantIconId = (int) get_option(self::OPTION_ASSISTANT_ICON_ID, 0);
+        $assistantIconUrl = $this->resolveAttachmentUrl($assistantIconId);
+        if ($assistantIconUrl === '') {
+            $assistantIconUrl = esc_url_raw((string) get_option(self::OPTION_ASSISTANT_ICON_URL, ''));
+        }
+
         return array(
             'api_key' => (string) get_option(self::OPTION_API_KEY, ''),
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
             'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
+            'assistant_icon_id' => $assistantIconId,
+            'assistant_icon_url' => esc_url_raw($assistantIconUrl),
+            'ui_theme' => $this->getUiThemeSettings(),
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getUiThemeSettings(): array
+    {
+        $defaults = $this->getDefaultUiTheme();
+        $stored = get_option(self::OPTION_UI_THEME, array());
+        if (!is_array($stored)) {
+            $stored = array();
+        }
+
+        $normalized = $this->normalizeUiThemeSettings($stored);
+
+        return array_merge($defaults, $normalized);
+    }
+
+    /**
+     * @param array<string, mixed> $theme
+     * @return array<string, string>
+     */
+    public function normalizeUiThemeSettings(array $theme): array
+    {
+        $defaults = $this->getDefaultUiTheme();
+        $normalized = array();
+
+        foreach ($defaults as $key => $defaultValue) {
+            $raw = array_key_exists($key, $theme) ? (string) $theme[$key] : $defaultValue;
+            $normalized[$key] = $this->sanitizeCssValue($raw, $defaultValue);
+        }
+
+        return $normalized;
     }
 
     public function getConfigurationEntries(): array
     {
+        $storedEntries = get_option(self::OPTION_CONFIGURATION_ENTRIES, array());
+        if (is_array($storedEntries) && !empty($storedEntries)) {
+            return $this->hydrateConfigurationEntries($this->normalizeConfigurationEntries($storedEntries));
+        }
+
         $starters = (string) get_option(self::OPTION_STARTERS, '');
-        return $this->parseStarterPromptsMarkdown($starters);
+        return $this->hydrateConfigurationEntries($this->parseStarterPromptsMarkdown($starters));
     }
 
     public function findConfigurationEntryByLabel(string $label): ?array
@@ -75,7 +196,7 @@ class SettingsService
 
     /**
      * @param array<int, mixed> $entries
-     * @return array<int, array{label: string, prompt: string, promptId: string}>
+     * @return array<int, array{label: string, prompt: string, promptId: string, iconId: int}>
      */
     public function normalizeConfigurationEntries(array $entries): array
     {
@@ -89,8 +210,9 @@ class SettingsService
             $label = trim(sanitize_text_field((string) ($entry['label'] ?? '')));
             $prompt = trim((string) ($entry['prompt'] ?? ''));
             $promptId = trim(sanitize_text_field((string) ($entry['promptId'] ?? '')));
+            $iconId = max(0, (int) ($entry['iconId'] ?? 0));
 
-            if ($label === '' && $prompt === '' && $promptId === '') {
+            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0) {
                 continue;
             }
 
@@ -98,6 +220,7 @@ class SettingsService
                 'label' => $label !== '' ? $label : 'Ohne Bezeichnung',
                 'prompt' => $prompt,
                 'promptId' => $promptId,
+                'iconId' => $iconId,
             );
         }
 
@@ -106,6 +229,9 @@ class SettingsService
 
     public function saveConfigurationRows(array $rows): void
     {
+        update_option(self::OPTION_CONFIGURATION_ENTRIES, $rows, false);
+
+        // Keep legacy markdown option synchronized for compatibility.
         $header = '| Zweck | Prompt | Prompt-ID |';
         $separator = '|---|---|---|';
         $body = array();
@@ -159,10 +285,32 @@ class SettingsService
                 'label' => $label,
                 'prompt' => $prompt,
                 'promptId' => $parts[2] ?? '',
+                'iconId' => 0,
             );
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<int, array{label: string, prompt: string, promptId: string, iconId?: int}> $entries
+     * @return array<int, array{label: string, prompt: string, promptId: string, iconId: int, iconUrl: string}>
+     */
+    private function hydrateConfigurationEntries(array $entries): array
+    {
+        $result = array();
+        foreach ($entries as $entry) {
+            $iconId = max(0, (int) ($entry['iconId'] ?? 0));
+            $result[] = array(
+                'label' => (string) ($entry['label'] ?? ''),
+                'prompt' => (string) ($entry['prompt'] ?? ''),
+                'promptId' => (string) ($entry['promptId'] ?? ''),
+                'iconId' => $iconId,
+                'iconUrl' => $this->resolveAttachmentUrl($iconId),
+            );
+        }
+
+        return $result;
     }
 
     private function maskApiKey(string $apiKey): string
@@ -193,5 +341,34 @@ class SettingsService
 
         $normalized = strtolower(trim((string) $value));
         return $normalized === '1' || $normalized === 'true' || $normalized === 'yes' || $normalized === 'on';
+    }
+
+    private function sanitizeCssValue(string $value, string $fallback): string
+    {
+        $clean = trim(wp_strip_all_tags($value));
+        if ($clean === '') {
+            return $fallback;
+        }
+
+        // Prevent CSS/script injection via style variables.
+        if (preg_match('/[{};]/', $clean) === 1 || stripos($clean, 'url(') !== false || stripos($clean, 'expression(') !== false) {
+            return $fallback;
+        }
+
+        return $clean;
+    }
+
+    private function resolveAttachmentUrl(int $attachmentId): string
+    {
+        if ($attachmentId <= 0) {
+            return '';
+        }
+
+        $url = wp_get_attachment_image_url($attachmentId, 'full');
+        if (!is_string($url) || trim($url) === '') {
+            return '';
+        }
+
+        return esc_url_raw($url);
     }
 }

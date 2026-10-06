@@ -59,12 +59,13 @@ import DOMPurify from 'dompurify';
     var chatId = parseInt(root.getAttribute('data-chat-id') || '0', 10);
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatsPage = root.getAttribute('data-chats-page') || '';
+    var assistantIconUrl = String(root.getAttribute('data-assistant-icon-url') || '').trim();
     var lastMessageCount = 0;
     var shouldStickToBottom = true;
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
-        statusEl.style.color = isError ? '#b00020' : '#2d6a4f';
+        statusEl.style.color = isError ? 'var(--wpcgpt-color-error)' : 'var(--wpcgpt-color-success)';
     }
 
     function request(path, options) {
@@ -215,9 +216,9 @@ import DOMPurify from 'dompurify';
             var el = document.createElement('button');
             el.type = 'button';
             el.textContent = button.label;
-            el.style.border = '1px solid #0a58ca';
-            el.style.background = '#eef4ff';
-            el.style.color = '#0a58ca';
+            el.style.border = '1px solid var(--wpcgpt-color-accent)';
+            el.style.background = 'var(--wpcgpt-color-surface)';
+            el.style.color = 'var(--wpcgpt-color-accent)';
             el.style.borderRadius = '14px';
             el.style.padding = '4px 10px';
             el.style.cursor = 'pointer';
@@ -261,7 +262,16 @@ import DOMPurify from 'dompurify';
         var avatar = document.createElement('div');
         avatar.className = 'wpcgpt-chat-avatar';
         avatar.setAttribute('aria-hidden', 'true');
-        avatar.innerHTML = role === 'assistant' ? ASSISTANT_AVATAR_SVG : USER_AVATAR_SVG;
+
+        if (role === 'assistant' && assistantIconUrl) {
+            var assistantIconImg = document.createElement('img');
+            assistantIconImg.className = 'wpcgpt-chat-avatar-image';
+            assistantIconImg.src = assistantIconUrl;
+            assistantIconImg.alt = '';
+            avatar.appendChild(assistantIconImg);
+        } else {
+            avatar.innerHTML = role === 'assistant' ? ASSISTANT_AVATAR_SVG : USER_AVATAR_SVG;
+        }
 
         var bubble = document.createElement('div');
         bubble.className = 'wpcgpt-chat-bubble';
@@ -347,7 +357,7 @@ import DOMPurify from 'dompurify';
             return;
         }
 
-        var row = createMessageRow('user', contentText, formatMessageTime(new Date().toISOString()), true);
+        var row = createMessageRow('user', renderMarkdown(contentText), formatMessageTime(new Date().toISOString()), true);
         row.setAttribute('data-pending-user-message', '1');
         messageOutput.appendChild(row);
         messageOutput.scrollTop = messageOutput.scrollHeight;

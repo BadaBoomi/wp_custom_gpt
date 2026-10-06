@@ -115,6 +115,7 @@ class ChatsController
 
         $configPrompt = $entry ? (string) ($entry['prompt'] ?? '') : '';
         $configPromptId = $entry ? (string) ($entry['promptId'] ?? '') : '';
+        $configIconUrl = $entry ? esc_url_raw((string) ($entry['iconUrl'] ?? '')) : '';
         $directive = $this->parseRuleFlowDirective($configPrompt);
 
         $chat = $this->chatRepository->createChat(
@@ -123,7 +124,8 @@ class ChatsController
             $title,
             $entry ? (string) ($entry['label'] ?? '') : '',
             $directive ? (string) $directive['cleaned_text'] : $configPrompt,
-            $configPromptId
+            $configPromptId,
+            $configIconUrl
         );
 
         if (!$chat) {

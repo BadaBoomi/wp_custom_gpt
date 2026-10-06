@@ -13,7 +13,7 @@
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
-        statusEl.style.color = isError ? '#b00020' : '#2d6a4f';
+        statusEl.style.color = isError ? 'var(--wpcgpt-color-error)' : 'var(--wpcgpt-color-success)';
     }
 
     function request(path, options) {

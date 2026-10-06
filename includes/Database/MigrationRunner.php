@@ -4,7 +4,7 @@ namespace WpCustomGpt\Database;
 
 class MigrationRunner
 {
-    private const SCHEMA_VERSION = '4';
+    private const SCHEMA_VERSION = '5';
     private const REQUIRED_TABLE_SUFFIXES = array(
         'wpcgpt_rooms',
         'wpcgpt_chats',
@@ -116,6 +116,7 @@ class MigrationRunner
             config_label VARCHAR(191) NULL,
             config_prompt LONGTEXT NULL,
             config_prompt_id VARCHAR(191) NULL,
+            config_icon_url VARCHAR(500) NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
             PRIMARY KEY (id),

@@ -7,16 +7,99 @@
     var form = document.getElementById('wpcgpt-settings-form');
     var statusEl = document.getElementById('wpcgpt-settings-status');
     var apiKeyInput = document.getElementById('wpcgpt-api-key');
-    var startersInput = document.getElementById('wpcgpt-starters');
     var apiKeyCurrentEl = document.getElementById('wpcgpt-api-key-current');
     var configurationRowsEl = document.getElementById('wpcgpt-configuration-rows');
     var configurationAddBtn = document.getElementById('wpcgpt-configuration-add');
+    var assistantIconIdInput = document.getElementById('wpcgpt-assistant-icon-id');
+    var assistantIconPreview = document.getElementById('wpcgpt-assistant-icon-preview');
+    var assistantIconUploadBtn = document.getElementById('wpcgpt-assistant-icon-upload');
+    var assistantIconRemoveBtn = document.getElementById('wpcgpt-assistant-icon-remove');
+    var tabButtons = root.querySelectorAll('.wpcgpt-tab-button');
+    var tabPanels = root.querySelectorAll('.wpcgpt-settings-tab-panel');
+
+    var THEME_FIELDS = [
+        'font_family',
+        'font_size',
+        'color_text',
+        'color_muted',
+        'color_background',
+        'color_surface',
+        'color_border',
+        'color_accent',
+        'color_accent_text',
+        'color_success',
+        'color_error',
+        'color_chat_window',
+        'color_user_bubble',
+        'color_assistant_bubble',
+        'color_assistant_avatar_bg',
+    ];
 
     var CONFIGURATION_FIELDS = [
         { key: 'label', type: 'text', placeholder: 'Zweck' },
         { key: 'prompt', type: 'textarea', placeholder: 'Prompt' },
         { key: 'promptId', type: 'text', placeholder: 'pmpt_...' },
     ];
+
+    function renderIconPreview(container, iconUrl) {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = '';
+
+        var cleanUrl = String(iconUrl || '').trim();
+        if (!cleanUrl) {
+            var empty = document.createElement('span');
+            empty.className = 'wpcgpt-icon-preview-empty';
+            empty.textContent = 'Kein Icon ausgewaehlt';
+            container.appendChild(empty);
+            return;
+        }
+
+        var image = document.createElement('img');
+        image.className = 'wpcgpt-icon-preview-image';
+        image.src = cleanUrl;
+        image.alt = '';
+        container.appendChild(image);
+    }
+
+    function openImagePicker(onSelected) {
+        if (typeof wp === 'undefined' || !wp.media) {
+            setStatus('WordPress Media-Uploader ist nicht verfuegbar.', true);
+            return;
+        }
+
+        var frame = wp.media({
+            title: 'Icon waehlen',
+            button: {
+                text: 'Icon verwenden',
+            },
+            library: {
+                type: 'image',
+            },
+            multiple: false,
+        });
+
+        frame.on('select', function () {
+            var selection = frame.state().get('selection');
+            if (!selection || selection.length === 0) {
+                return;
+            }
+
+            var attachment = selection.first().toJSON();
+            if (!attachment || !attachment.id) {
+                return;
+            }
+
+            onSelected({
+                id: parseInt(attachment.id, 10) || 0,
+                url: String(attachment.url || '').trim(),
+            });
+        });
+
+        frame.open();
+    }
 
     function createConfigurationRow(entry) {
         var row = document.createElement('tr');
@@ -43,6 +126,43 @@
             cell.appendChild(input);
             row.appendChild(cell);
         });
+
+        var iconCell = document.createElement('td');
+        iconCell.style.padding = '4px 6px 4px 0';
+
+        var iconIdInput = document.createElement('input');
+        iconIdInput.type = 'hidden';
+        iconIdInput.setAttribute('data-field', 'iconId');
+        iconIdInput.value = String((entry && entry.iconId) ? parseInt(entry.iconId, 10) : 0);
+
+        var iconPreview = document.createElement('div');
+        iconPreview.className = 'wpcgpt-icon-preview';
+        renderIconPreview(iconPreview, entry && entry.iconUrl ? entry.iconUrl : '');
+
+        var iconUploadBtn = document.createElement('button');
+        iconUploadBtn.type = 'button';
+        iconUploadBtn.textContent = 'Icon waehlen';
+        iconUploadBtn.addEventListener('click', function () {
+            openImagePicker(function (selected) {
+                iconIdInput.value = String(selected.id || 0);
+                renderIconPreview(iconPreview, selected.url || '');
+            });
+        });
+
+        var iconRemoveBtn = document.createElement('button');
+        iconRemoveBtn.type = 'button';
+        iconRemoveBtn.textContent = 'Entfernen';
+        iconRemoveBtn.style.marginLeft = '6px';
+        iconRemoveBtn.addEventListener('click', function () {
+            iconIdInput.value = '0';
+            renderIconPreview(iconPreview, '');
+        });
+
+        iconCell.appendChild(iconIdInput);
+        iconCell.appendChild(iconPreview);
+        iconCell.appendChild(iconUploadBtn);
+        iconCell.appendChild(iconRemoveBtn);
+        row.appendChild(iconCell);
 
         var actionCell = document.createElement('td');
         actionCell.style.padding = '4px 0';
@@ -92,6 +212,13 @@
                 }
             });
 
+            var iconInput = row.querySelector('[data-field="iconId"]');
+            var iconId = iconInput ? parseInt(iconInput.value || '0', 10) : 0;
+            entry.iconId = isNaN(iconId) ? 0 : Math.max(0, iconId);
+            if (entry.iconId > 0) {
+                hasValue = true;
+            }
+
             if (hasValue) {
                 entries.push(entry);
             }
@@ -102,7 +229,29 @@
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
-        statusEl.style.color = isError ? '#b00020' : '#2d6a4f';
+        statusEl.style.color = isError ? 'var(--wpcgpt-color-error)' : 'var(--wpcgpt-color-success)';
+    }
+
+    function toThemeInputId(key) {
+        return 'wpcgpt-theme-' + key.replace(/_/g, '-');
+    }
+
+    function setActiveTab(tabId) {
+        Array.prototype.forEach.call(tabButtons, function (button) {
+            var isActive = button.getAttribute('data-tab') === tabId;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        Array.prototype.forEach.call(tabPanels, function (panel) {
+            var isActive = panel.getAttribute('data-tab-panel') === tabId;
+            panel.classList.toggle('is-active', isActive);
+            if (isActive) {
+                panel.removeAttribute('hidden');
+            } else {
+                panel.setAttribute('hidden', 'hidden');
+            }
+        });
     }
 
     function request(method, path, body) {
@@ -129,8 +278,22 @@
     }
 
     function fillForm(data) {
-        startersInput.value = data.starters || '';
         renderConfigurationRows(data.configuration_entries || []);
+
+        if (assistantIconIdInput) {
+            assistantIconIdInput.value = String(parseInt((data && data.assistant_icon_id) || 0, 10) || 0);
+        }
+        renderIconPreview(assistantIconPreview, (data && data.assistant_icon_url) || '');
+
+        var theme = (data && data.ui_theme && typeof data.ui_theme === 'object') ? data.ui_theme : {};
+        THEME_FIELDS.forEach(function (key) {
+            var input = document.getElementById(toThemeInputId(key));
+            if (!input) {
+                return;
+            }
+
+            input.value = String(theme[key] || '');
+        });
 
         if (data.has_api_key) {
             apiKeyCurrentEl.textContent = 'Aktueller API-Key: ' + (data.api_key_masked || '(versteckt)');
@@ -156,7 +319,14 @@
 
         var payload = {
             configuration_entries: collectConfigurationEntries(),
+            assistant_icon_id: assistantIconIdInput ? parseInt(assistantIconIdInput.value || '0', 10) || 0 : 0,
+            ui_theme: {},
         };
+
+        THEME_FIELDS.forEach(function (key) {
+            var input = document.getElementById(toThemeInputId(key));
+            payload.ui_theme[key] = input ? input.value.trim() : '';
+        });
 
         var apiKeyValue = apiKeyInput.value.trim();
         if (apiKeyValue) {
@@ -183,6 +353,35 @@
             }
         });
     }
+
+    if (assistantIconUploadBtn && assistantIconIdInput) {
+        assistantIconUploadBtn.addEventListener('click', function () {
+            openImagePicker(function (selected) {
+                assistantIconIdInput.value = String(selected.id || 0);
+                renderIconPreview(assistantIconPreview, selected.url || '');
+            });
+        });
+    }
+
+    if (assistantIconRemoveBtn && assistantIconIdInput) {
+        assistantIconRemoveBtn.addEventListener('click', function () {
+            assistantIconIdInput.value = '0';
+            renderIconPreview(assistantIconPreview, '');
+        });
+    }
+
+    Array.prototype.forEach.call(tabButtons, function (button) {
+        button.addEventListener('click', function () {
+            var tabId = button.getAttribute('data-tab');
+            if (!tabId) {
+                return;
+            }
+
+            setActiveTab(tabId);
+        });
+    });
+
+    setActiveTab('general');
 
     loadSettings();
 })();
