@@ -85,6 +85,92 @@ class ChatsController
                 'permission_callback' => array($this, 'isLoggedIn'),
             ),
         ));
+
+        register_rest_route(self::NAMESPACE, '/transient/send', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'sendTransientMessageToOpenAi'),
+                'permission_callback' => array($this, 'canUseTransientMode'),
+            ),
+        ));
+    }
+
+    public function sendTransientMessageToOpenAi(WP_REST_Request $request)
+    {
+        if (!$this->settingsService->isTransientModeEnabled()) {
+            return new WP_Error('transient_mode_disabled', 'Transient Mode ist deaktiviert.', array('status' => 403));
+        }
+
+        $payload = $request->get_json_params();
+        $message = is_array($payload) ? trim((string) ($payload['message'] ?? '')) : '';
+        $configId = is_array($payload) ? (int) ($payload['config_id'] ?? 0) : 0;
+        $rawHistory = is_array($payload) && isset($payload['history']) && is_array($payload['history'])
+            ? $payload['history']
+            : array();
+
+        if ($message === '') {
+            return new WP_Error('invalid_message', 'Nachricht ist erforderlich.', array('status' => 400));
+        }
+
+        if ($configId <= 0) {
+            return new WP_Error('invalid_config_id', 'Ungueltige Konfigurations-ID.', array('status' => 400));
+        }
+
+        $entry = $this->settingsService->findConfigurationEntryById($configId);
+        if (!$entry) {
+            return new WP_Error('configuration_not_found', 'Konfigurationseintrag nicht gefunden.', array('status' => 404));
+        }
+
+        $history = array();
+        foreach ($rawHistory as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $role = isset($item['role']) ? (string) $item['role'] : '';
+            $content = isset($item['content']) ? trim((string) $item['content']) : '';
+            if ($content === '' || !in_array($role, array('user', 'assistant', 'system'), true)) {
+                continue;
+            }
+
+            $history[] = array(
+                'role' => $role,
+                'content' => $content,
+            );
+        }
+
+        if (count($history) > self::OPENAI_HISTORY_LIMIT) {
+            $history = array_slice($history, -self::OPENAI_HISTORY_LIMIT);
+        }
+
+        $history[] = array(
+            'role' => 'user',
+            'content' => $message,
+        );
+
+        $promptId = trim((string) ($entry['promptId'] ?? ''));
+        $openAiResult = $this->openAiService->createAssistantReply(
+            $history,
+            $promptId !== '' ? $promptId : null,
+            array()
+        );
+
+        if (is_wp_error($openAiResult)) {
+            return $openAiResult;
+        }
+
+        $assistantText = (string) ($openAiResult['assistant_text'] ?? '');
+        if ($assistantText === '') {
+            return new WP_Error('openai_empty_response', 'OpenAI hat keine Antwort geliefert.', array('status' => 502));
+        }
+
+        return rest_ensure_response(array(
+            'assistant_message' => array(
+                'role' => 'assistant',
+                'content' => $assistantText,
+                'created_at' => gmdate('Y-m-d H:i:s'),
+            ),
+        ));
     }
 
     public function listChatsForRoom(WP_REST_Request $request): array
@@ -509,5 +595,10 @@ class ChatsController
     public function isLoggedIn(): bool
     {
         return is_user_logged_in();
+    }
+
+    public function canUseTransientMode(): bool
+    {
+        return $this->settingsService->isTransientModeEnabled();
     }
 }

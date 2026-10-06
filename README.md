@@ -23,6 +23,7 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
   - `GET /wp-json/wp-custom-gpt/v1/chats/{chatId}/messages`
   - `POST /wp-json/wp-custom-gpt/v1/chats/{chatId}/messages`
   - `POST /wp-json/wp-custom-gpt/v1/chats/{chatId}/send` (stores user message, calls OpenAI, stores assistant message)
+  - `POST /wp-json/wp-custom-gpt/v1/transient/send` (Transient Mode only; non-persistent conversation turn)
 - Room management shortcode: `[wp_custom_gpt_rooms]`
 - Chat management shortcode: `[wp_custom_gpt_chats]`
 - Single chat shortcode: `[wp_custom_gpt_chat]`
@@ -52,6 +53,12 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
 [wp_custom_gpt_chat chats_page="/chat-verwaltung/"]
 ```
 
+Optional Transient Mode usage (no room, no persistence):
+
+```text
+[wp_custom_gpt_chat config_id="3"]
+```
+
 Shortcode page targets accept:
 
 - absolute URL (for example `https://localhost/eure-welt-ev/chat-verwaltung/`)
@@ -75,12 +82,19 @@ For maximum reliability, use page IDs in shortcode attributes.
 Use shortcode `[wp_custom_gpt_settings]` to manage:
 
 - API key
-- Configuration entries (`Zweck`, `Prompt`, `Prompt-ID`), stored as Markdown table
+- Transient Mode flag
+- Configuration entries (`ID`, `Zweck`, `Prompt`, `Prompt-ID`, `Icon`)
+- Default assistant icon (upload/select from WordPress media library)
+- Appearance tab for fonts/colors used by chat, chat management and room management
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
 - `wpcgpt_api_key`
 - `wpcgpt_starters`
+- `wpcgpt_configuration_entries`
+- `wpcgpt_assistant_icon_id`
+- `wpcgpt_ui_theme`
+- `wpcgpt_transient_mode_enabled`
 
 Permission model:
 
@@ -159,19 +173,38 @@ Behavior:
 The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
 
 ```text
-| Zweck | Prompt | Prompt-ID |
+| ID | Zweck | Prompt | Prompt-ID | Icon |
 ```
 
-Rows can be added and removed manually and are saved with the settings form. They are stored as a markdown table in the
-`wpcgpt_starters` option.
+Rows can be added and removed manually and are saved with the settings form.
+
+- `ID` is stable and can be used by the `config_id` shortcode parameter of `[wp_custom_gpt_chat ...]`.
+- `Icon` can be uploaded/selected per configuration row and overrides the global assistant icon for chats created with that configuration.
+
+Entries are stored structurally in `wpcgpt_configuration_entries` and synchronized to the legacy markdown option `wpcgpt_starters` for backward compatibility.
+
+### Appearance customization (settings tab)
+
+The settings page includes a dedicated tab `Farben und Schriften` with:
+
+- Default assistant icon upload/select/remove
+- Font family selector (predefined list)
+- Font size
+- Color selectors for all theme colors used by:
+  - `[wp_custom_gpt_chat]`
+  - `[wp_custom_gpt_chats]`
+  - `[wp_custom_gpt_rooms]`
+
+The old read-only markdown textarea view for starters has been removed.
 
 ### Configuration selection when creating a chat
 
 On the chat management page (`[wp_custom_gpt_chats ...]`) an entry can be selected when creating a new chat. The selected
-entry is stored with the chat (`config_label`, `config_prompt`, `config_prompt_id`) and defines:
+entry is stored with the chat (`config_label`, `config_prompt`, `config_prompt_id`, `config_icon_url`) and defines:
 
 - the `Prompt-ID` used for every OpenAI request of that chat (without one, `gpt-4.1-mini` is used),
 - the prompt text, which is prefilled into the message box of an empty chat,
+- the assistant icon for this chat (if set on the selected configuration entry),
 - whether a rule-based flow starts: if the prompt contains `[[start_rule_flow:<flow_type>]]`, the flow is started directly at
   chat creation.
 
@@ -189,6 +222,32 @@ replies produce buttons there.
 5. You will land on the single chat page (`[wp_custom_gpt_chat ...]`).
 6. Send a message using the message box and `Send to OpenAI`.
 7. The plugin persists both user and assistant messages in WordPress DB.
+
+## Transient Mode (non-persistent chat)
+
+`Transient Mode` can be enabled on `[wp_custom_gpt_settings]`.
+
+If enabled, you can create a dedicated transient chat page with:
+
+```text
+[wp_custom_gpt_chat config_id="<ID>"]
+```
+
+Where `<ID>` is the configuration row ID shown in the settings table.
+
+Transient Mode behavior:
+
+- No messages are persisted in plugin chat/message tables.
+- No room relation is required or used.
+- No user/customer relation is required or used for the conversation data.
+- Conversation history is kept only in browser memory for the current page session.
+- The selected configuration controls prompt/prompt-id and optional assistant icon override.
+
+Notes:
+
+- The endpoint used is `POST /wp-json/wp-custom-gpt/v1/transient/send`.
+- If transient mode is disabled, transient endpoint usage is rejected.
+- `config_id` requires an existing configuration row ID.
 
 ### Inline response buttons above chat input
 

@@ -60,8 +60,12 @@ import DOMPurify from 'dompurify';
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatsPage = root.getAttribute('data-chats-page') || '';
     var assistantIconUrl = String(root.getAttribute('data-assistant-icon-url') || '').trim();
+    var transientMode = String(root.getAttribute('data-transient-mode') || '0') === '1';
+    var transientConfigId = parseInt(root.getAttribute('data-transient-config-id') || '0', 10);
+    var transientPrompt = String(root.getAttribute('data-transient-prompt') || '').trim();
     var lastMessageCount = 0;
     var shouldStickToBottom = true;
+    var transientMessages = [];
 
     function setStatus(message, isError) {
         statusEl.textContent = message;
@@ -364,6 +368,13 @@ import DOMPurify from 'dompurify';
     }
 
     function prefillConfigurationPrompt() {
+        if (transientMode) {
+            if (transientPrompt && !messageInput.value.trim()) {
+                messageInput.value = transientPrompt;
+            }
+            return Promise.resolve();
+        }
+
         return request('/chats/' + chatId, { method: 'GET' })
             .then(function (chat) {
                 var configPrompt = String((chat && chat.config_prompt) || '').trim();
@@ -377,6 +388,12 @@ import DOMPurify from 'dompurify';
     }
 
     function loadMessages() {
+        if (transientMode) {
+            renderMessages(transientMessages);
+            setStatus('Transient-Verlauf bereit.', false);
+            return Promise.resolve(transientMessages);
+        }
+
         setStatus('Nachrichten werden geladen...', false);
         return request('/chats/' + chatId + '/messages?limit=150', { method: 'GET' })
             .then(function (messages) {
@@ -391,6 +408,10 @@ import DOMPurify from 'dompurify';
     }
 
     function loadRoomLabel() {
+        if (transientMode) {
+            return;
+        }
+
         if (!roomLabelEl || !roomId) {
             return;
         }
@@ -410,6 +431,10 @@ import DOMPurify from 'dompurify';
     }
 
     function goBackToChats(event) {
+        if (transientMode) {
+            return;
+        }
+
         event.preventDefault();
 
         if (!chatsPage) {
@@ -435,6 +460,53 @@ import DOMPurify from 'dompurify';
         appendPendingUserMessage(message);
         setStatus('Nachricht wird gesendet...', false);
 
+        if (transientMode) {
+            var historyBeforeSend = transientMessages.slice();
+
+            request('/transient/send', {
+                method: 'POST',
+                body: JSON.stringify({
+                    config_id: transientConfigId,
+                    message: message,
+                    history: historyBeforeSend,
+                }),
+            })
+                .then(function (response) {
+                    var assistant = response && response.assistant_message ? response.assistant_message : null;
+                    if (!assistant || !assistant.content) {
+                        throw new Error('Es wurde keine Assistenten-Antwort geliefert.');
+                    }
+
+                    transientMessages = historyBeforeSend.concat([
+                        {
+                            role: 'user',
+                            content: message,
+                            created_at: new Date().toISOString(),
+                        },
+                        {
+                            role: 'assistant',
+                            content: String(assistant.content || ''),
+                            created_at: String(assistant.created_at || new Date().toISOString()),
+                        },
+                    ]);
+
+                    messageInput.value = '';
+                    renderMessages(transientMessages);
+                    setStatus('Antwort wurde erzeugt.', false);
+                })
+                .catch(function (error) {
+                    setStatus(error.message, true);
+                    renderMessages(historyBeforeSend);
+                })
+                .finally(function () {
+                    if (sendMessageBtn) {
+                        sendMessageBtn.disabled = false;
+                    }
+                });
+
+            return;
+        }
+
         request('/chats/' + chatId + '/send', {
             method: 'POST',
             body: JSON.stringify({ message: message }),
@@ -455,7 +527,16 @@ import DOMPurify from 'dompurify';
             });
     });
 
-    refreshMessagesBtn.addEventListener('click', loadMessages);
+    refreshMessagesBtn.addEventListener('click', function () {
+        if (transientMode) {
+            transientMessages = [];
+            loadMessages();
+            setStatus('Verlauf wurde geleert.', false);
+            return;
+        }
+
+        loadMessages();
+    });
     backChatsLink.addEventListener('click', goBackToChats);
     messageOutput.addEventListener('scroll', function () {
         shouldStickToBottom = isNearBottom();

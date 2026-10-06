@@ -7,6 +7,7 @@
     var form = document.getElementById('wpcgpt-settings-form');
     var statusEl = document.getElementById('wpcgpt-settings-status');
     var apiKeyInput = document.getElementById('wpcgpt-api-key');
+    var transientModeEnabledInput = document.getElementById('wpcgpt-transient-mode-enabled');
     var apiKeyCurrentEl = document.getElementById('wpcgpt-api-key-current');
     var configurationRowsEl = document.getElementById('wpcgpt-configuration-rows');
     var configurationAddBtn = document.getElementById('wpcgpt-configuration-add');
@@ -104,6 +105,14 @@
     function createConfigurationRow(entry) {
         var row = document.createElement('tr');
         row.className = 'wpcgpt-configuration-row';
+        row.setAttribute('data-config-id', String((entry && entry.id) ? parseInt(entry.id, 10) : 0));
+
+        var idCell = document.createElement('td');
+        idCell.style.padding = '4px 6px 4px 0';
+        idCell.className = 'wpcgpt-config-id-cell';
+        var idValue = parseInt(row.getAttribute('data-config-id') || '0', 10);
+        idCell.textContent = idValue > 0 ? String(idValue) : 'Neu';
+        row.appendChild(idCell);
 
         CONFIGURATION_FIELDS.forEach(function (field) {
             var cell = document.createElement('td');
@@ -203,6 +212,9 @@
             var entry = {};
             var hasValue = false;
 
+            var idValue = parseInt(row.getAttribute('data-config-id') || '0', 10);
+            entry.id = isNaN(idValue) ? 0 : Math.max(0, idValue);
+
             CONFIGURATION_FIELDS.forEach(function (field) {
                 var input = row.querySelector('[data-field="' + field.key + '"]');
                 var value = input ? input.value.trim() : '';
@@ -280,6 +292,10 @@
     function fillForm(data) {
         renderConfigurationRows(data.configuration_entries || []);
 
+        if (transientModeEnabledInput) {
+            transientModeEnabledInput.checked = !!(data && data.transient_mode_enabled);
+        }
+
         if (assistantIconIdInput) {
             assistantIconIdInput.value = String(parseInt((data && data.assistant_icon_id) || 0, 10) || 0);
         }
@@ -320,6 +336,7 @@
         var payload = {
             configuration_entries: collectConfigurationEntries(),
             assistant_icon_id: assistantIconIdInput ? parseInt(assistantIconIdInput.value || '0', 10) || 0 : 0,
+            transient_mode_enabled: transientModeEnabledInput ? !!transientModeEnabledInput.checked : false,
             ui_theme: {},
         };
 

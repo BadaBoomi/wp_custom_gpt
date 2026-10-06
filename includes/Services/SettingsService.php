@@ -10,6 +10,7 @@ class SettingsService
     private const OPTION_ASSISTANT_ICON_URL = 'wpcgpt_assistant_icon_url';
     private const OPTION_ASSISTANT_ICON_ID = 'wpcgpt_assistant_icon_id';
     private const OPTION_CONFIGURATION_ENTRIES = 'wpcgpt_configuration_entries';
+    private const OPTION_TRANSIENT_MODE_ENABLED = 'wpcgpt_transient_mode_enabled';
     private const OPTION_UI_THEME = 'wpcgpt_ui_theme';
 
     /**
@@ -69,6 +70,7 @@ class SettingsService
         return array(
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
             'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
+            'transient_mode_enabled' => $this->isTransientModeEnabled(),
             'configuration_entries' => $this->getConfigurationEntries(),
             'assistant_icon_id' => $assistantIconId,
             'assistant_icon_url' => esc_url_raw($assistantIconUrl),
@@ -95,6 +97,11 @@ class SettingsService
         if (array_key_exists('openai_debug_enabled', $payload)) {
             $enabled = $this->toBool($payload['openai_debug_enabled']) ? '1' : '0';
             update_option(self::OPTION_OPENAI_DEBUG_ENABLED, $enabled, false);
+        }
+
+        if (array_key_exists('transient_mode_enabled', $payload)) {
+            $enabled = $this->toBool($payload['transient_mode_enabled']) ? '1' : '0';
+            update_option(self::OPTION_TRANSIENT_MODE_ENABLED, $enabled, false);
         }
 
         if (array_key_exists('assistant_icon_id', $payload)) {
@@ -128,10 +135,16 @@ class SettingsService
             'api_key' => (string) get_option(self::OPTION_API_KEY, ''),
             'starters' => (string) get_option(self::OPTION_STARTERS, ''),
             'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
+            'transient_mode_enabled' => $this->isTransientModeEnabled(),
             'assistant_icon_id' => $assistantIconId,
             'assistant_icon_url' => esc_url_raw($assistantIconUrl),
             'ui_theme' => $this->getUiThemeSettings(),
         );
+    }
+
+    public function isTransientModeEnabled(): bool
+    {
+        return $this->toBool(get_option(self::OPTION_TRANSIENT_MODE_ENABLED, '0'));
     }
 
     /**
@@ -194,29 +207,63 @@ class SettingsService
         return null;
     }
 
+    public function findConfigurationEntryById(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        foreach ($this->getConfigurationEntries() as $entry) {
+            if ((int) ($entry['id'] ?? 0) === $id) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array<int, mixed> $entries
-     * @return array<int, array{label: string, prompt: string, promptId: string, iconId: int}>
+     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int}>
      */
     public function normalizeConfigurationEntries(array $entries): array
     {
         $normalized = array();
+        $maxId = 0;
 
         foreach ($entries as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
 
+            $existingId = max(0, (int) ($entry['id'] ?? 0));
+            if ($existingId > $maxId) {
+                $maxId = $existingId;
+            }
+        }
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $id = max(0, (int) ($entry['id'] ?? 0));
             $label = trim(sanitize_text_field((string) ($entry['label'] ?? '')));
             $prompt = trim((string) ($entry['prompt'] ?? ''));
             $promptId = trim(sanitize_text_field((string) ($entry['promptId'] ?? '')));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
+
+            if ($id === 0) {
+                $maxId++;
+                $id = $maxId;
+            }
 
             if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0) {
                 continue;
             }
 
             $normalized[] = array(
+                'id' => $id,
                 'label' => $label !== '' ? $label : 'Ohne Bezeichnung',
                 'prompt' => $prompt,
                 'promptId' => $promptId,
@@ -282,6 +329,7 @@ class SettingsService
             }
 
             $entries[] = array(
+                'id' => count($entries) + 1,
                 'label' => $label,
                 'prompt' => $prompt,
                 'promptId' => $parts[2] ?? '',
@@ -293,15 +341,17 @@ class SettingsService
     }
 
     /**
-     * @param array<int, array{label: string, prompt: string, promptId: string, iconId?: int}> $entries
-     * @return array<int, array{label: string, prompt: string, promptId: string, iconId: int, iconUrl: string}>
+     * @param array<int, array{id?: int, label: string, prompt: string, promptId: string, iconId?: int}> $entries
+     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int, iconUrl: string}>
      */
     private function hydrateConfigurationEntries(array $entries): array
     {
         $result = array();
         foreach ($entries as $entry) {
+            $id = max(0, (int) ($entry['id'] ?? 0));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
             $result[] = array(
+                'id' => $id,
                 'label' => (string) ($entry['label'] ?? ''),
                 'prompt' => (string) ($entry['prompt'] ?? ''),
                 'promptId' => (string) ($entry['promptId'] ?? ''),

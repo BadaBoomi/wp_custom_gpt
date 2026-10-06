@@ -345,41 +345,67 @@ class Plugin
 
     public function renderChatShortcode($atts = array()): string
     {
-        if (!is_user_logged_in()) {
+        $atts = shortcode_atts(array(
+            'chats_page' => '',
+            'config_id' => '0',
+        ), $atts, 'wp_custom_gpt_chat');
+
+        $settingsService = new SettingsService();
+        $transientModeEnabled = $settingsService->isTransientModeEnabled();
+        $transientConfigId = absint((string) ($atts['config_id'] ?? '0'));
+        $useTransientMode = $transientModeEnabled && $transientConfigId > 0;
+
+        if ($transientConfigId > 0 && !$transientModeEnabled) {
+            return '<p>Transient Mode ist deaktiviert. Aktivieren Sie ihn in den Einstellungen oder oeffnen Sie den Chat ueber die Chatverwaltung.</p>';
+        }
+
+        if (!$useTransientMode && !is_user_logged_in()) {
             return '<p>Bitte melden Sie sich an, um WP Custom GPT zu nutzen.</p>';
         }
 
-        $chatId = isset($_GET['chat_id']) ? absint($_GET['chat_id']) : 0;
-        $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
-        if ($chatId <= 0) {
+        $chatId = $useTransientMode ? 0 : (isset($_GET['chat_id']) ? absint($_GET['chat_id']) : 0);
+        $roomId = $useTransientMode ? 0 : (isset($_GET['room_id']) ? absint($_GET['room_id']) : 0);
+        if (!$useTransientMode && $chatId <= 0) {
             return '<p>chat_id fehlt in der URL. Oeffnen Sie diese Seite aus der Chatverwaltung.</p>';
         }
-
-        $atts = shortcode_atts(array(
-            'chats_page' => '',
-        ), $atts, 'wp_custom_gpt_chat');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
         $assistantIconUrl = (string) $frontendUiConfig['assistant_icon_url'];
+        $transientPrompt = '';
 
-        $chatRepository = new ChatRepository();
-        $chat = $chatRepository->getChatForUser($chatId, (int) get_current_user_id());
-        if (is_array($chat) && !empty($chat['config_icon_url'])) {
-            $assistantIconUrl = esc_url_raw((string) $chat['config_icon_url']);
+        if ($useTransientMode) {
+            $entry = $settingsService->findConfigurationEntryById($transientConfigId);
+            if (!$entry) {
+                return '<p>Konfigurationseintrag fuer Transient Mode nicht gefunden.</p>';
+            }
+
+            if (!empty($entry['iconUrl'])) {
+                $assistantIconUrl = esc_url_raw((string) $entry['iconUrl']);
+            }
+
+            $transientPrompt = (string) ($entry['prompt'] ?? '');
+        }
+
+        if (!$useTransientMode) {
+            $chatRepository = new ChatRepository();
+            $chat = $chatRepository->getChatForUser($chatId, (int) get_current_user_id());
+            if (is_array($chat) && !empty($chat['config_icon_url'])) {
+                $assistantIconUrl = esc_url_raw((string) $chat['config_icon_url']);
+            }
         }
 
         wp_enqueue_script(self::CHAT_SCRIPT_HANDLE);
         wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '">';
         $html .= '  <div class="wpcgpt-header">';
-        $html .= '    <h2>Chat</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh-messages">Nachrichten aktualisieren</button>';
+        $html .= '    <h2>' . ($useTransientMode ? 'Chat (Transient Mode)' : 'Chat') . '</h2>';
+        $html .= '    <button type="button" id="wpcgpt-refresh-messages">' . ($useTransientMode ? 'Verlauf leeren' : 'Nachrichten aktualisieren') . '</button>';
         $html .= '  </div>';
-        $html .= '  <p id="wpcgpt-room-label"></p>';
+        $html .= '  <p id="wpcgpt-room-label"' . ($useTransientMode ? ' style="display:none;"' : '') . '></p>';
         $html .= '  <div id="wpcgpt-message-output" class="wpcgpt-chat-window"></div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:760px;"></div>';
@@ -390,7 +416,7 @@ class Plugin
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <button type="button" id="wpcgpt-send-message">Senden</button>';
         $html .= '  </div>';
-        $html .= '  <p><a id="wpcgpt-back-chats" href="#">Zurueck zu den Chats</a></p>';
+        $html .= '  <p' . ($useTransientMode ? ' style="display:none;"' : '') . '><a id="wpcgpt-back-chats" href="#">Zurueck zu den Chats</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -427,10 +453,13 @@ class Plugin
         $html .= '      <p><label for="wpcgpt-api-key">API-Key (leer lassen, um den aktuellen zu behalten)</label><br />';
         $html .= '      <input id="wpcgpt-api-key" type="password" autocomplete="off" style="width:100%;max-width:640px;" /></p>';
         $html .= '      <p id="wpcgpt-api-key-current"></p>';
+        $html .= '      <p><label><input id="wpcgpt-transient-mode-enabled" type="checkbox" /> Transient Mode aktivieren</label><br />';
+        $html .= '      <span class="description">Wenn aktiv, kann der Chat-Shortcode mit <code>config_id</code> einen nicht-persistenten, nicht benutzer- und nicht raumgebundenen Dialog starten.</span></p>';
         $html .= '      <h3>Konfigurationseintraege</h3>';
         $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
         $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1100px;border-collapse:collapse;">';
         $html .= '        <thead><tr>';
+        $html .= '          <th style="text-align:left;">ID</th>';
         $html .= '          <th style="text-align:left;">Zweck</th>';
         $html .= '          <th style="text-align:left;">Prompt</th>';
         $html .= '          <th style="text-align:left;">Prompt-ID</th>';
