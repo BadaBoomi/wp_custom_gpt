@@ -37,19 +37,33 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
 3. Create a page for rooms and place:
 
 ```text
-[wp_custom_gpt_rooms chats_page="/chat-verwaltung/"]
+[wp_custom_gpt_rooms chats_page="/chat-verwaltung/" width="100%" max_width="1200px"]
 ```
 
 4. Create a page for chat management (selected room) and place:
 
 ```text
-[wp_custom_gpt_chats rooms_page="/raum-verwaltung/" chat_page="/chat/"]
+[wp_custom_gpt_chats rooms_page="/raum-verwaltung/" chat_page="/chat/" width="100%" max_width="1200px"]
 ```
 
 5. Create a page for a single chat and place:
 
 ```text
-[wp_custom_gpt_chat chats_page="/chat-verwaltung/"]
+[wp_custom_gpt_chat chats_page="/chat-verwaltung/" width="100%" max_width="1200px"]
+```
+
+The app shortcodes support these sizing attributes:
+
+- `width` (default `100%`)
+- `max_width` (default `980px`)
+- `min_width` (default `0`)
+
+Use them to let the widget expand to the surrounding page width or to constrain it to a custom maximum width.
+
+Example with a wider chat pane:
+
+```text
+[wp_custom_gpt_chat width="100%" max_width="1400px" min_width="320px"]
 ```
 
 Shortcode page targets accept:
