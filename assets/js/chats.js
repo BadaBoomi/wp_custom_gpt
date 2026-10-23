@@ -26,6 +26,33 @@
         configurationEntries = [];
     }
 
+    var currentRoomChats = [];
+
+    function getAvailableConfigurationEntries(chats) {
+        var counts = {};
+        (chats || []).forEach(function (chat) {
+            var label = String((chat && chat.config_label) || '').trim();
+            if (!label) {
+                return;
+            }
+            counts[label] = (counts[label] || 0) + 1;
+        });
+
+        return (configurationEntries || []).filter(function (entry) {
+            var label = String((entry && entry.label) || '').trim();
+            if (!label) {
+                return false;
+            }
+
+            var maxPerRoom = parseInt(entry && entry.maxPerRoom !== undefined ? entry.maxPerRoom : 0, 10) || 0;
+            if (maxPerRoom <= 0) {
+                return true;
+            }
+
+            return (counts[label] || 0) < maxPerRoom;
+        });
+    }
+
     function renderConfigurationOptions() {
         if (!configurationSelect) {
             return;
@@ -34,17 +61,21 @@
         configurationSelect.innerHTML = '';
         configurationSelect.required = true;
 
-        if (!configurationEntries.length) {
+        var availableEntries = getAvailableConfigurationEntries(currentRoomChats);
+
+        if (!availableEntries.length) {
             var none = document.createElement('option');
             none.value = '';
-            none.textContent = 'Keine Konfigurationseintraege vorhanden';
+            none.textContent = configurationEntries.length
+                ? 'Keine freien Chattypen mehr verfügbar'
+                : 'Keine Konfigurationseintraege vorhanden';
             none.disabled = true;
             none.selected = true;
             configurationSelect.appendChild(none);
             return;
         }
 
-        configurationEntries.forEach(function (entry) {
+        availableEntries.forEach(function (entry) {
             var label = String((entry && entry.label) || '').trim();
             if (!label) {
                 return;
@@ -235,6 +266,8 @@
         setStatus('Chats werden geladen...', false);
         request('/rooms/' + roomId + '/chats', { method: 'GET' })
             .then(function (chats) {
+                currentRoomChats = chats || [];
+                renderConfigurationOptions();
                 renderChats(chats);
                 setStatus('Chats geladen.', false);
             })

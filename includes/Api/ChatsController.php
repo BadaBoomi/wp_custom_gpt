@@ -200,6 +200,14 @@ class ChatsController
             if (!$entry) {
                 return new WP_Error('configuration_not_found', 'Konfigurationseintrag nicht gefunden.', array('status' => 404));
             }
+
+            $maxPerRoom = max(0, (int) ($entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0));
+            if ($maxPerRoom > 0) {
+                $used = $this->chatRepository->countChatsByConfigLabelForRoom($roomId, $userId, $configurationLabel);
+                if ($used >= $maxPerRoom) {
+                    return new WP_Error('chat_type_limit_reached', 'Dieser Chattyp ist in diesem Raum bereits voll.', array('status' => 403));
+                }
+            }
         }
 
         $configPrompt = $entry ? (string) ($entry['prompt'] ?? '') : '';
@@ -228,6 +236,14 @@ class ChatsController
         }
 
         $chat['flow'] = $flowMeta;
+
+        if ($directive === null && trim($configPrompt) !== '') {
+            $greeting = $this->processRoomDirectivesForOutput($chat, $userId, $configPrompt);
+            if (trim($greeting) !== '') {
+                $assistantMessage = $this->chatRepository->addMessage((int) $chat['id'], $userId, 'assistant', $greeting, true);
+                $chat['initial_assistant_message'] = $assistantMessage;
+            }
+        }
 
         return rest_ensure_response($chat);
     }

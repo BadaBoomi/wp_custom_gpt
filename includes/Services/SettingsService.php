@@ -252,13 +252,15 @@ class SettingsService
             $prompt = trim((string) ($entry['prompt'] ?? ''));
             $promptId = trim(sanitize_text_field((string) ($entry['promptId'] ?? '')));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
+            $maxPerRoomRaw = $entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0;
+            $maxPerRoom = max(0, (int) $maxPerRoomRaw);
 
             if ($id === 0) {
                 $maxId++;
                 $id = $maxId;
             }
 
-            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0) {
+            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0 && $maxPerRoom === 0) {
                 continue;
             }
 
@@ -268,6 +270,7 @@ class SettingsService
                 'prompt' => $prompt,
                 'promptId' => $promptId,
                 'iconId' => $iconId,
+                'maxPerRoom' => $maxPerRoom,
             );
         }
 
@@ -350,12 +353,14 @@ class SettingsService
         foreach ($entries as $entry) {
             $id = max(0, (int) ($entry['id'] ?? 0));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
+            $maxPerRoom = max(0, (int) ($entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0));
             $result[] = array(
                 'id' => $id,
                 'label' => (string) ($entry['label'] ?? ''),
                 'prompt' => (string) ($entry['prompt'] ?? ''),
                 'promptId' => (string) ($entry['promptId'] ?? ''),
                 'iconId' => $iconId,
+                'maxPerRoom' => $maxPerRoom,
                 'iconUrl' => $this->resolveAttachmentUrl($iconId),
             );
         }

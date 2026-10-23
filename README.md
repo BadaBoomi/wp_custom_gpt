@@ -10,6 +10,8 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
   - `wpcgpt_chats`
   - `wpcgpt_messages`
   - `wpcgpt_flow_sessions`
+- Configuration-based chat types with per-room quota enforcement
+- Initial greeting generation for each new chat type via the `Prompt` field
 - REST API v1 endpoints:
   - `GET /wp-json/wp-custom-gpt/v1/health`
   - `GET /wp-json/wp-custom-gpt/v1/settings` (admin only)
@@ -83,9 +85,14 @@ Use shortcode `[wp_custom_gpt_settings]` to manage:
 
 - API key
 - Transient Mode flag
-- Configuration entries (`ID`, `Zweck`, `Prompt`, `Prompt-ID`, `Icon`)
+- Configuration entries (`ID`, `Zweck`, `Prompt`, `Max per room`, `Prompt-ID`, `Icon`)
 - Default assistant icon (upload/select from WordPress media library)
 - Appearance tab for fonts/colors used by chat, chat management and room management
+
+Important behavior:
+
+- `Prompt` is no longer a generic text prefill. It is the first assistant message shown when a new chat of that configuration is created.
+- `Max per room` restricts how many chats of that type may exist in a single room. Once the limit is reached, the type is no longer offered in the chat creation selector.
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
@@ -173,12 +180,14 @@ Behavior:
 The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
 
 ```text
-| ID | Zweck | Prompt | Prompt-ID | Icon |
+| ID | Zweck | Prompt | Max per room | Prompt-ID | Icon |
 ```
 
 Rows can be added and removed manually and are saved with the settings form.
 
 - `ID` is stable and can be used by the `config_id` shortcode parameter of `[wp_custom_gpt_chat ...]`.
+- `Prompt` is the initial assistant greeting shown as the first message when a new chat of this type is created.
+- `Max per room` limits how many chats of that configuration can exist inside the same room. When the limit is reached, the entry is hidden from the chat-type selector.
 - `Icon` can be uploaded/selected per configuration row and overrides the global assistant icon for chats created with that configuration.
 
 Entries are stored structurally in `wpcgpt_configuration_entries` and synchronized to the legacy markdown option `wpcgpt_starters` for backward compatibility.
@@ -203,11 +212,12 @@ On the chat management page (`[wp_custom_gpt_chats ...]`) an entry can be select
 entry is stored with the chat (`config_label`, `config_prompt`, `config_prompt_id`, `config_icon_url`) and defines:
 
 - the `Prompt-ID` used for every OpenAI request of that chat (without one, `gpt-4.1-mini` is used),
-- the prompt text, which is prefilled into the message box of an empty chat,
+- the initial assistant greeting, which is inserted as the first assistant message when the chat is created,
 - the assistant icon for this chat (if set on the selected configuration entry),
 - whether a rule-based flow starts: if the prompt contains `[[start_rule_flow:<flow_type>]]`, the flow is started directly at
   chat creation.
 
+The chat-type selector automatically filters out entries whose `Max per room` limit has already been reached for the current room.
 Configuration entries are no longer rendered as buttons above the chat input; only `[[buttons:...]]` tokens from assistant
 replies produce buttons there.
 
@@ -312,8 +322,19 @@ dist/wp-custom-gpt-<version>.zip
 - The archive always contains the same top-level plugin folder name `wp-custom-gpt`.
 - This stable folder name is required so WordPress can replace an existing installation during plugin upload.
 
-## Next implementation slices
+## Recent changes
 
-1. OpenAI service port and send-message orchestration.
-2. Rule flow engine + collect_contact handler.
-3. Basic admin settings page UI.
+### vNext
+
+- Added `Max per room` to each configuration entry in the settings table.
+- Enforcement is active in the room chat selector and on the server-side chat creation endpoint.
+- A configuration entry is hidden from the selector if its quota for the current room has already been reached.
+- The `Prompt` field now acts as the first assistant greeting when a new chat of that type is created.
+- The initial greeting is stored as the first assistant message in the new chat.
+- Existing functionality for flow directives and inline assistant buttons remains intact.
+
+## Current implementation notes
+
+- The room-scoped `Max per room` limit is enforced both in the UI selector and on the server-side chat creation flow.
+- The `Prompt` value functions as the initial greeting for a newly created chat, rather than as a message-box prefill.
+- Rule-flow directives and inline response buttons remain supported in assistant output.

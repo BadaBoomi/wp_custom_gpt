@@ -169,6 +169,27 @@ class ChatRepository
         return $this->findChatForUser($chatId, $userId);
     }
 
+    public function countChatsByConfigLabelForRoom(int $roomId, int $userId, string $configLabel): int
+    {
+        if (!$this->roomExistsForUser($roomId, $userId)) {
+            return 0;
+        }
+
+        $normalized = trim(sanitize_text_field($configLabel));
+        if ($normalized === '') {
+            return 0;
+        }
+
+        $sql = $this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->chatsTable} WHERE user_id = %d AND room_id = %d AND config_label = %s",
+            $userId,
+            $roomId,
+            $normalized
+        );
+
+        return (int) $this->wpdb->get_var($sql);
+    }
+
     public function delete(int $chatId, int $userId): bool
     {
         if (!$this->chatExistsForUser($chatId, $userId)) {

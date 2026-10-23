@@ -38,7 +38,8 @@
 
     var CONFIGURATION_FIELDS = [
         { key: 'label', type: 'text', placeholder: 'Zweck' },
-        { key: 'prompt', type: 'textarea', placeholder: 'Prompt' },
+        { key: 'prompt', type: 'textarea', placeholder: 'Prompt / Begruessung' },
+        { key: 'maxPerRoom', type: 'number', placeholder: '0', min: '0' },
         { key: 'promptId', type: 'text', placeholder: 'pmpt_...' },
     ];
 
@@ -124,13 +125,17 @@
                 input.rows = 2;
             } else {
                 input = document.createElement('input');
-                input.type = 'text';
+                input.type = field.type || 'text';
+                if (field.min !== undefined) {
+                    input.min = String(field.min);
+                }
             }
 
             input.style.width = '100%';
-            input.placeholder = field.placeholder;
+            input.placeholder = field.placeholder || '';
             input.setAttribute('data-field', field.key);
-            input.value = (entry && entry[field.key]) ? String(entry[field.key]) : '';
+            var rawValue = entry && entry[field.key] !== undefined && entry[field.key] !== null ? String(entry[field.key]) : '';
+            input.value = rawValue;
 
             cell.appendChild(input);
             row.appendChild(cell);
@@ -218,6 +223,14 @@
             CONFIGURATION_FIELDS.forEach(function (field) {
                 var input = row.querySelector('[data-field="' + field.key + '"]');
                 var value = input ? input.value.trim() : '';
+                if (field.type === 'number') {
+                    entry[field.key] = parseInt(value || '0', 10) || 0;
+                    if (entry[field.key] > 0) {
+                        hasValue = true;
+                    }
+                    return;
+                }
+
                 entry[field.key] = value;
                 if (value) {
                     hasValue = true;

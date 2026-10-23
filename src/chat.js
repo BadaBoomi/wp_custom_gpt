@@ -367,23 +367,7 @@ import DOMPurify from 'dompurify';
     }
 
     function prefillConfigurationPrompt() {
-        if (transientMode) {
-            if (transientPrompt && !messageInput.value.trim()) {
-                messageInput.value = transientPrompt;
-            }
-            return Promise.resolve();
-        }
-
-        return request('/chats/' + chatId, { method: 'GET' })
-            .then(function (chat) {
-                var configPrompt = String((chat && chat.config_prompt) || '').trim();
-                if (configPrompt && !messageInput.value.trim()) {
-                    messageInput.value = configPrompt;
-                }
-            })
-            .catch(function () {
-                /* Konfigurationsprompt ist optional. */
-            });
+        return Promise.resolve();
     }
 
     function loadMessages() {

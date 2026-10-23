@@ -457,12 +457,13 @@ class Plugin
         $html .= '      <p><label><input id="wpcgpt-transient-mode-enabled" type="checkbox" /> Transient Mode aktivieren</label><br />';
         $html .= '      <span class="description">Wenn aktiv, kann der Chat-Shortcode mit <code>config_id</code> einen nicht-persistenten, nicht benutzer- und nicht raumgebundenen Dialog starten.</span></p>';
         $html .= '      <h3>Konfigurationseintraege</h3>';
-        $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
-        $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1100px;border-collapse:collapse;">';
+        $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Das Feld <strong>Prompt</strong> definiert die erste Assistenten-Ausgabe (Begruessung) beim Erstellen eines neuen Chats dieses Typs; die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
+        $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1200px;border-collapse:collapse;">';
         $html .= '        <thead><tr>';
         $html .= '          <th style="text-align:left;">ID</th>';
         $html .= '          <th style="text-align:left;">Zweck</th>';
         $html .= '          <th style="text-align:left;">Prompt</th>';
+        $html .= '          <th style="text-align:left;">Max per room</th>';
         $html .= '          <th style="text-align:left;">Prompt-ID</th>';
         $html .= '          <th style="text-align:left;">Icon</th>';
         $html .= '          <th></th>';
