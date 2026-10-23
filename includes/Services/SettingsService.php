@@ -278,13 +278,56 @@ class SettingsService
     }
 
     /**
+     * @param array<int, mixed> $values
+     * @return string[]
+     */
+    private function normalizeAttributeList($values, array $allowedValues = array()): array
+    {
+        if (!is_array($values)) {
+            $values = array($values);
+        }
+
+        $allowedMap = array();
+        foreach ($allowedValues as $allowedValue) {
+            $normalized = strtolower(trim((string) $allowedValue));
+            $normalized = preg_replace('/[^a-z0-9 _\-]/', '', $normalized);
+            if ($normalized !== '') {
+                $allowedMap[$normalized] = true;
+            }
+        }
+
+        $result = array();
+        $seen = array();
+
+        foreach ($values as $value) {
+            $normalized = strtolower(trim((string) $value));
+            $normalized = preg_replace('/[^a-z0-9 _\-]/', '', $normalized);
+            $normalized = is_string($normalized) ? trim($normalized) : '';
+
+            if ($normalized === '' || isset($seen[$normalized])) {
+                continue;
+            }
+
+            if (!empty($allowedMap) && !isset($allowedMap[$normalized])) {
+                continue;
+            }
+
+            $seen[$normalized] = true;
+            $result[] = $normalized;
+        }
+
+        return $result;
+    }
+
+    /**
      * @param array<int, mixed> $entries
-     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int}>
+     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int, maxPerRoom: int, attrPrereq: string[], attrProv: string[]}>
      */
     public function normalizeConfigurationEntries(array $entries): array
     {
         $normalized = array();
         $maxId = 0;
+        $allowedRoomAttributes = $this->getRoomAttributes();
 
         foreach ($entries as $entry) {
             if (!is_array($entry)) {
@@ -309,13 +352,15 @@ class SettingsService
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
             $maxPerRoomRaw = $entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0;
             $maxPerRoom = max(0, (int) $maxPerRoomRaw);
+            $attrPrereq = $this->normalizeAttributeList($entry['attrPrereq'] ?? $entry['attr_prereq'] ?? array(), $allowedRoomAttributes);
+            $attrProv = $this->normalizeAttributeList($entry['attrProv'] ?? $entry['attr_prov'] ?? array(), $allowedRoomAttributes);
 
             if ($id === 0) {
                 $maxId++;
                 $id = $maxId;
             }
 
-            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0 && $maxPerRoom === 0) {
+            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0 && $maxPerRoom === 0 && empty($attrPrereq) && empty($attrProv)) {
                 continue;
             }
 
@@ -326,6 +371,8 @@ class SettingsService
                 'promptId' => $promptId,
                 'iconId' => $iconId,
                 'maxPerRoom' => $maxPerRoom,
+                'attrPrereq' => $attrPrereq,
+                'attrProv' => $attrProv,
             );
         }
 
@@ -404,11 +451,14 @@ class SettingsService
      */
     private function hydrateConfigurationEntries(array $entries): array
     {
+        $allowedRoomAttributes = $this->getRoomAttributes();
         $result = array();
         foreach ($entries as $entry) {
             $id = max(0, (int) ($entry['id'] ?? 0));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
             $maxPerRoom = max(0, (int) ($entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0));
+            $attrPrereq = $this->normalizeAttributeList($entry['attrPrereq'] ?? $entry['attr_prereq'] ?? array(), $allowedRoomAttributes);
+            $attrProv = $this->normalizeAttributeList($entry['attrProv'] ?? $entry['attr_prov'] ?? array(), $allowedRoomAttributes);
             $result[] = array(
                 'id' => $id,
                 'label' => (string) ($entry['label'] ?? ''),
@@ -416,6 +466,8 @@ class SettingsService
                 'promptId' => (string) ($entry['promptId'] ?? ''),
                 'iconId' => $iconId,
                 'maxPerRoom' => $maxPerRoom,
+                'attrPrereq' => $attrPrereq,
+                'attrProv' => $attrProv,
                 'iconUrl' => $this->resolveAttachmentUrl($iconId),
             );
         }

@@ -201,6 +201,30 @@ class ChatsController
                 return new WP_Error('configuration_not_found', 'Konfigurationseintrag nicht gefunden.', array('status' => 404));
             }
 
+            $requiredAttributes = $this->normalizeEntryAttributeNames((array) ($entry['attrPrereq'] ?? array()));
+            if (!empty($requiredAttributes)) {
+                $roomAttributes = $this->roomRepository->getCustomAttributesForRoom($roomId, $userId);
+                $lookup = array();
+                foreach ($roomAttributes as $key => $value) {
+                    $normalized = strtolower(trim((string) $key));
+                    $normalized = preg_replace('/[^a-z0-9 _\-]/', '', $normalized);
+                    if ($normalized !== '') {
+                        $lookup[$normalized] = trim((string) $value);
+                    }
+                }
+
+                $missing = array();
+                foreach ($requiredAttributes as $attribute) {
+                    if (!isset($lookup[$attribute]) || trim((string) $lookup[$attribute]) === '') {
+                        $missing[] = $attribute;
+                    }
+                }
+
+                if (!empty($missing)) {
+                    return new WP_Error('missing_required_room_attributes', 'In diesem Raum fehlen die erforderlichen Attribute: ' . implode(', ', $missing), array('status' => 403));
+                }
+            }
+
             $maxPerRoom = max(0, (int) ($entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0));
             if ($maxPerRoom > 0) {
                 $used = $this->chatRepository->countChatsByConfigLabelForRoom($roomId, $userId, $configurationLabel);
@@ -263,11 +287,19 @@ class ChatsController
     public function deleteChat(WP_REST_Request $request)
     {
         $chatId = (int) $request->get_param('chatId');
-        $deleted = $this->chatRepository->delete($chatId, (int) get_current_user_id());
+        $userId = (int) get_current_user_id();
+        $chat = $this->chatRepository->getChatForUser($chatId, $userId);
 
+        if (!$chat) {
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
+        }
+
+        $deleted = $this->chatRepository->delete($chatId, $userId);
         if (!$deleted) {
             return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
         }
+
+        $this->cleanupRoomAttributesProvidedByDeletedChat($chat, $chatId, $userId);
 
         return rest_ensure_response(array('deleted' => true));
     }
@@ -472,6 +504,85 @@ class ChatsController
             ),
             'assistant_message' => $assistantMessage,
         );
+    }
+
+    private function normalizeEntryAttributeNames(array $values): array
+    {
+        $result = array();
+        $seen = array();
+
+        foreach ($values as $value) {
+            $normalized = strtolower(trim((string) $value));
+            $normalized = preg_replace('/[^a-z0-9 _\-]/', '', $normalized);
+            $normalized = is_string($normalized) ? trim($normalized) : '';
+            if ($normalized === '' || isset($seen[$normalized])) {
+                continue;
+            }
+
+            $seen[$normalized] = true;
+            $result[] = $normalized;
+        }
+
+        return $result;
+    }
+
+    private function cleanupRoomAttributesProvidedByDeletedChat(array $chat, int $deletedChatId, int $userId): void
+    {
+        $roomId = isset($chat['room_id']) ? (int) $chat['room_id'] : 0;
+        if ($roomId <= 0) {
+            return;
+        }
+
+        $configLabel = trim((string) ($chat['config_label'] ?? ''));
+        if ($configLabel === '') {
+            return;
+        }
+
+        $entry = $this->settingsService->findConfigurationEntryByLabel($configLabel);
+        if (!$entry) {
+            return;
+        }
+
+        $providedAttributes = $this->normalizeEntryAttributeNames((array) ($entry['attrProv'] ?? array()));
+        if (empty($providedAttributes)) {
+            return;
+        }
+
+        $remainingChats = $this->chatRepository->listChatsForRoom($roomId, $userId);
+        $keysToRemove = array();
+
+        foreach ($providedAttributes as $attribute) {
+            $stillProvided = false;
+            foreach ($remainingChats as $candidate) {
+                if ((int) ($candidate['id'] ?? 0) === $deletedChatId) {
+                    continue;
+                }
+
+                $candidateLabel = trim((string) ($candidate['config_label'] ?? ''));
+                if ($candidateLabel === '') {
+                    continue;
+                }
+
+                $candidateEntry = $this->settingsService->findConfigurationEntryByLabel($candidateLabel);
+                if (!$candidateEntry) {
+                    continue;
+                }
+
+                $candidateProvided = $this->normalizeEntryAttributeNames((array) ($candidateEntry['attrProv'] ?? array()));
+                if (in_array($attribute, $candidateProvided, true)) {
+                    $stillProvided = true;
+                    break;
+                }
+            }
+
+            if (!$stillProvided) {
+                $keysToRemove[] = $attribute;
+            }
+        }
+
+        if (!empty($keysToRemove)) {
+            $this->roomRepository->removeCustomAttributes($roomId, $userId, $keysToRemove);
+        }
     }
 
     private function parseRuleFlowDirective(string $text): ?array

@@ -193,6 +193,69 @@ class RoomRepository
         return $this->decodeCustomAttributes((string) ($room['custom_attributes'] ?? ''));
     }
 
+    public function removeCustomAttributes(int $roomId, int $userId, array $attributes): ?array
+    {
+        $room = $this->findByIdForUser($roomId, $userId);
+        if (!$room) {
+            return null;
+        }
+
+        $existing = $this->decodeCustomAttributes((string) ($room['custom_attributes'] ?? ''));
+        $keysToRemove = array();
+
+        foreach ($attributes as $attribute) {
+            $cleanKey = strtolower(trim((string) $attribute));
+            $cleanKey = preg_replace('/[^a-z0-9 _\-]/', '', $cleanKey);
+            $cleanKey = is_string($cleanKey) ? trim($cleanKey) : '';
+            if ($cleanKey !== '') {
+                $keysToRemove[strtolower($cleanKey)] = $cleanKey;
+            }
+        }
+
+        if (empty($keysToRemove)) {
+            return $room;
+        }
+
+        $changed = false;
+        foreach ($existing as $key => $value) {
+            $normalizedKey = strtolower(trim((string) $key));
+            $normalizedKey = preg_replace('/[^a-z0-9 _\-]/', '', $normalizedKey);
+            if ($normalizedKey !== '' && isset($keysToRemove[$normalizedKey])) {
+                unset($existing[$key]);
+                $changed = true;
+            }
+        }
+
+        if (!$changed) {
+            return $room;
+        }
+
+        $encoded = wp_json_encode($existing);
+        if (!is_string($encoded)) {
+            return null;
+        }
+
+        $updated = $this->wpdb->update(
+            $this->table,
+            array(
+                'custom_attributes' => $encoded,
+                'updated_at' => current_time('mysql', true),
+            ),
+            array(
+                'id' => $roomId,
+                'user_id' => $userId,
+            ),
+            array('%s', '%s'),
+            array('%d', '%d')
+        );
+
+        if ($updated === false) {
+            return null;
+        }
+
+        return $this->findByIdForUser($roomId, $userId);
+    }
+
     public function getByIdForUser(int $roomId, int $userId): ?array
     {
         return $this->findByIdForUser($roomId, $userId);

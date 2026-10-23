@@ -170,6 +170,7 @@ class Plugin
         wp_localize_script(self::SETTINGS_SCRIPT_HANDLE, 'WPCGPT_SETTINGS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
+            'roomAttributes' => (new SettingsService())->getRoomAttributes(),
         ));
     }
 
@@ -469,12 +470,15 @@ class Plugin
         $html .= '    <section id="wpcgpt-settings-tab-chat-types" class="wpcgpt-settings-tab-panel" data-tab-panel="chat-types" role="tabpanel" aria-labelledby="wpcgpt-tab-chat-types" hidden>';
         $html .= '      <h3>Konfigurationseintraege</h3>';
         $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Das Feld <strong>Prompt</strong> definiert die erste Assistenten-Ausgabe (Begruessung) beim Erstellen eines neuen Chats dieses Typs; die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
+        $html .= '      <p class="description">Erlaubte Werte fuer <strong>Attr prereq</strong> und <strong>Attr prov</strong>: nur Attribute aus dem Tab <strong>Raum-Attribute</strong>.</p>';
         $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1200px;border-collapse:collapse;">';
         $html .= '        <thead><tr>';
         $html .= '          <th style="text-align:left;">ID</th>';
         $html .= '          <th style="text-align:left;">Zweck</th>';
         $html .= '          <th style="text-align:left;">Prompt</th>';
         $html .= '          <th style="text-align:left;">Max per room</th>';
+        $html .= '          <th style="text-align:left;">Attr prereq</th>';
+        $html .= '          <th style="text-align:left;">Attr prov</th>';
         $html .= '          <th style="text-align:left;">Prompt-ID</th>';
         $html .= '          <th style="text-align:left;">Icon</th>';
         $html .= '          <th></th>';

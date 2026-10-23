@@ -11,6 +11,8 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
   - `wpcgpt_messages`
   - `wpcgpt_flow_sessions`
 - Configuration-based chat types with per-room quota enforcement
+- Room attribute configuration with ordered display and filtered visibility
+- Attribute prerequisites and provision rules per chat type
 - Initial greeting generation for each new chat type via the `Prompt` field
 - REST API v1 endpoints:
   - `GET /wp-json/wp-custom-gpt/v1/health`
@@ -85,7 +87,9 @@ Use shortcode `[wp_custom_gpt_settings]` to manage:
 
 - API key
 - Transient Mode flag
-- Configuration entries (`ID`, `Zweck`, `Prompt`, `Max per room`, `Prompt-ID`, `Icon`)
+- General settings
+- Chat type tab with configuration entries (`ID`, `Zweck`, `Prompt`, `Max per room`, `Attr prereq`, `Attr prov`, `Prompt-ID`, `Icon`)
+- Room attribute tab with ordered room attribute definitions and visibility control
 - Default assistant icon (upload/select from WordPress media library)
 - Appearance tab for fonts/colors used by chat, chat management and room management
 
@@ -93,6 +97,9 @@ Important behavior:
 
 - `Prompt` is no longer a generic text prefill. It is the first assistant message shown when a new chat of that configuration is created.
 - `Max per room` restricts how many chats of that type may exist in a single room. Once the limit is reached, the type is no longer offered in the chat creation selector.
+- `Attr prereq` limits creation of a chat type to rooms where all selected attributes already exist and are non-empty.
+- `Attr prov` declares room attributes that this chat type provides. When the chat is deleted, those attributes are removed from the room only if no other remaining chat in the same room still provides them.
+- The order in `Raum-Attribute` is the order used for room attribute display; undocumented attributes are hidden entirely.
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
@@ -180,7 +187,7 @@ Behavior:
 The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
 
 ```text
-| ID | Zweck | Prompt | Max per room | Prompt-ID | Icon |
+| ID | Zweck | Prompt | Max per room | Attr prereq | Attr prov | Prompt-ID | Icon |
 ```
 
 Rows can be added and removed manually and are saved with the settings form.
@@ -188,9 +195,17 @@ Rows can be added and removed manually and are saved with the settings form.
 - `ID` is stable and can be used by the `config_id` shortcode parameter of `[wp_custom_gpt_chat ...]`.
 - `Prompt` is the initial assistant greeting shown as the first message when a new chat of this type is created.
 - `Max per room` limits how many chats of that configuration can exist inside the same room. When the limit is reached, the entry is hidden from the chat-type selector.
+- `Attr prereq` lists room attributes that must already be defined in the room before a new chat of this type can be created.
+- `Attr prov` lists attributes this chat type provides to the room. They are removed when the last chat of this type in the room is deleted, unless some other chat in the same room still provides them.
 - `Icon` can be uploaded/selected per configuration row and overrides the global assistant icon for chats created with that configuration.
 
 Entries are stored structurally in `wpcgpt_configuration_entries` and synchronized to the legacy markdown option `wpcgpt_starters` for backward compatibility.
+
+### Room attributes configuration
+
+The settings page includes a dedicated tab `Raum-Attribute` where you can define which room attributes exist and in which order they should be rendered. The order is used for display in room listings; attributes missing from this list are hidden from room display entirely.
+
+Only attribute names configured here are available as possible selections in `Attr prereq` and `Attr prov` for chat types.
 
 ### Appearance customization (settings tab)
 

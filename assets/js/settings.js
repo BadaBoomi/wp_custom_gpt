@@ -42,8 +42,121 @@
         { key: 'label', type: 'text', placeholder: 'Zweck' },
         { key: 'prompt', type: 'textarea', placeholder: 'Prompt / Begruessung' },
         { key: 'maxPerRoom', type: 'number', placeholder: '0', min: '0' },
-        { key: 'promptId', type: 'text', placeholder: 'pmpt_...' },
     ];
+
+    function getRoomAttributeOptions() {
+        var attributeNames = [];
+        var allowed = [];
+
+        if (Array.isArray(window.WPCGPT_SETTINGS_CONFIG && window.WPCGPT_SETTINGS_CONFIG.roomAttributes)) {
+            allowed = window.WPCGPT_SETTINGS_CONFIG.roomAttributes;
+        } else if (Array.isArray(window.WPCGPT_SETTINGS_CONFIG && window.WPCGPT_SETTINGS_CONFIG.room_attributes)) {
+            allowed = window.WPCGPT_SETTINGS_CONFIG.room_attributes;
+        }
+
+        if (!allowed.length && roomAttributeRowsEl) {
+            allowed = collectRoomAttributes();
+        }
+
+        allowed.forEach(function (attribute) {
+            var name = String(attribute || '').trim().toLowerCase();
+            name = name.replace(/[^a-z0-9 _\-]/g, '').trim();
+            if (name && attributeNames.indexOf(name) === -1) {
+                attributeNames.push(name);
+            }
+        });
+
+        return attributeNames;
+    }
+
+    function createAttributeSelect(selectedValues, fieldKey) {
+        var wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexDirection = 'column';
+        wrapper.style.gap = '2px';
+        wrapper.style.minWidth = '130px';
+        wrapper.style.maxWidth = '180px';
+        wrapper.setAttribute('data-field', fieldKey);
+
+        var options = getRoomAttributeOptions();
+        if (!options.length) {
+            var empty = document.createElement('div');
+            empty.style.color = '#6b7280';
+            empty.style.fontSize = '12px';
+            empty.textContent = 'Raum-Attribute fehlen';
+            wrapper.appendChild(empty);
+            return wrapper;
+        }
+
+        var selectedMap = {};
+        (selectedValues || []).forEach(function (value) {
+            var normalized = String(value || '').trim();
+            if (normalized) {
+                selectedMap[normalized] = true;
+            }
+        });
+
+        options.forEach(function (name) {
+            var item = document.createElement('label');
+            item.style.display = 'flex';
+            item.style.alignItems = 'center';
+            item.style.gap = '4px';
+            item.style.fontSize = '12px';
+            item.style.lineHeight = '1.4';
+            item.style.whiteSpace = 'nowrap';
+
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = name;
+            checkbox.checked = !!selectedMap[name];
+            checkbox.style.margin = '0';
+
+            var text = document.createElement('span');
+            text.textContent = name;
+
+            item.appendChild(checkbox);
+            item.appendChild(text);
+            wrapper.appendChild(item);
+        });
+
+        return wrapper;
+    }
+
+    function collectSelectedValues(selectEl) {
+        if (!selectEl) {
+            return [];
+        }
+
+        var inputs = selectEl.querySelectorAll ? selectEl.querySelectorAll('input[type="checkbox"]') : [];
+        if (inputs && inputs.length) {
+            var values = [];
+            Array.prototype.forEach.call(inputs, function (checkbox) {
+                if (checkbox.checked) {
+                    var value = String(checkbox.value || '').trim();
+                    if (value) {
+                        values.push(value);
+                    }
+                }
+            });
+            return values;
+        }
+
+        if (selectEl.options) {
+            var values = [];
+            for (var i = 0; i < selectEl.options.length; i += 1) {
+                var option = selectEl.options[i];
+                if (option.selected) {
+                    var value = String(option.value || '').trim();
+                    if (value) {
+                        values.push(value);
+                    }
+                }
+            }
+            return values;
+        }
+
+        return [];
+    }
 
     function createRoomAttributeRow(name) {
         var row = document.createElement('div');
@@ -243,6 +356,29 @@
             row.appendChild(cell);
         });
 
+        var prereqCell = document.createElement('td');
+        prereqCell.style.padding = '4px 6px 4px 0';
+        var prereqValues = Array.isArray(entry && entry.attrPrereq) ? entry.attrPrereq : [];
+        prereqCell.appendChild(createAttributeSelect(prereqValues, 'attrPrereq'));
+        row.appendChild(prereqCell);
+
+        var provCell = document.createElement('td');
+        provCell.style.padding = '4px 6px 4px 0';
+        var provValues = Array.isArray(entry && entry.attrProv) ? entry.attrProv : [];
+        provCell.appendChild(createAttributeSelect(provValues, 'attrProv'));
+        row.appendChild(provCell);
+
+        var promptIdCell = document.createElement('td');
+        promptIdCell.style.padding = '4px 6px 4px 0';
+        var promptIdInput = document.createElement('input');
+        promptIdInput.type = 'text';
+        promptIdInput.placeholder = 'pmpt_...';
+        promptIdInput.style.width = '100%';
+        promptIdInput.setAttribute('data-field', 'promptId');
+        promptIdInput.value = entry && entry.promptId !== undefined && entry.promptId !== null ? String(entry.promptId) : '';
+        promptIdCell.appendChild(promptIdInput);
+        row.appendChild(promptIdCell);
+
         var iconCell = document.createElement('td');
         iconCell.style.padding = '4px 6px 4px 0';
 
@@ -338,6 +474,18 @@
                     hasValue = true;
                 }
             });
+
+            var promptIdInput = row.querySelector('[data-field="promptId"]');
+            entry.promptId = promptIdInput ? promptIdInput.value.trim() : '';
+            if (entry.promptId) {
+                hasValue = true;
+            }
+
+            entry.attrPrereq = collectSelectedValues(row.querySelector('[data-field="attrPrereq"]'));
+            entry.attrProv = collectSelectedValues(row.querySelector('[data-field="attrProv"]'));
+            if (entry.attrPrereq.length || entry.attrProv.length) {
+                hasValue = true;
+            }
 
             var iconInput = row.querySelector('[data-field="iconId"]');
             var iconId = iconInput ? parseInt(iconInput.value || '0', 10) : 0;
