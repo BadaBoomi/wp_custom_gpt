@@ -263,7 +263,7 @@
 
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
-            deleteBtn.textContent = 'Loeschen';
+            deleteBtn.textContent = 'Löschen';
             deleteBtn.addEventListener('click', function () {
                 if (!window.confirm('Sind Sie sicher dass Sie den kompletten Chatverlauf löschen wollen? Diese Aktion kann nicht rückgängig gemacht werden')) {
                     return;
@@ -271,7 +271,7 @@
 
                 request('/chats/' + chat.id, { method: 'DELETE' })
                     .then(function () {
-                        setStatus('Chat geloescht.', false);
+                        setStatus('Chat gelöscht.', false);
                         loadChats();
                     })
                     .catch(function (error) {

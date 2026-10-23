@@ -71,7 +71,7 @@ class OpenAiService
 
         $assistantText = $this->extractAssistantText($body);
         if ($assistantText === '') {
-            return new WP_Error('openai_empty_response', 'OpenAI hat keinen Assistenten-Text zurueckgegeben.', array('status' => 502));
+            return new WP_Error('openai_empty_response', 'OpenAI hat keinen Assistenten-Text zurückgegeben.', array('status' => 502));
         }
 
         return array(

@@ -235,7 +235,7 @@ class Plugin
         echo '    <h2>Flow-Dateien</h2>';
         echo '    <p>Dateien fuer diesen Flow-Typ hochladen (xlsx, xls, csv, ods, tsv, txt, json; max. 10 MB).</p>';
         echo '    <p><input id="wpcgpt-flow-file-input" type="file" /> <button type="button" id="wpcgpt-flow-file-upload" class="button button-secondary">Datei hochladen</button> <button type="button" id="wpcgpt-flow-file-refresh" class="button">Dateiliste aktualisieren</button></p>';
-        echo '    <p><label for="wpcgpt-flow-file-delete-id">Zu loeschende Datei-ID</label> <input id="wpcgpt-flow-file-delete-id" type="number" min="1" style="width:100px;" /> <button type="button" id="wpcgpt-flow-file-delete" class="button">Datei loeschen</button></p>';
+        echo '    <p><label for="wpcgpt-flow-file-delete-id">Zu löschende Datei-ID</label> <input id="wpcgpt-flow-file-delete-id" type="number" min="1" style="width:100px;" /> <button type="button" id="wpcgpt-flow-file-delete" class="button">Datei löschen</button></p>';
         echo '    <pre id="wpcgpt-flow-files-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <pre id="wpcgpt-flow-list-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <p id="wpcgpt-flow-status" aria-live="polite"></p>';
@@ -309,7 +309,7 @@ class Plugin
 
         $roomId = isset($_GET['room_id']) ? absint($_GET['room_id']) : 0;
         if ($roomId <= 0) {
-            return '<p>room_id fehlt in der URL. Oeffnen Sie diese Seite aus der Raumverwaltung.</p>';
+            return '<p>room_id fehlt in der URL. Öffnen Sie diese Seite aus der Raumverwaltung.</p>';
         }
 
         $atts = shortcode_atts(array(
@@ -332,7 +332,7 @@ class Plugin
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
-        $html .= '      <button type="button" id="wpcgpt-back-rooms">Zurueck zu den Raeumen</button>';
+        $html .= '      <button type="button" id="wpcgpt-back-rooms">Zurück zu den Räumen</button>';
         $html .= '    </div>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"></p>';
@@ -362,7 +362,7 @@ class Plugin
         $useTransientMode = $transientModeEnabled && $transientConfigId > 0;
 
         if ($transientConfigId > 0 && !$transientModeEnabled) {
-            return '<p>Transient Mode ist deaktiviert. Aktivieren Sie ihn in den Einstellungen oder oeffnen Sie den Chat ueber die Chatverwaltung.</p>';
+            return '<p>Transient Mode ist deaktiviert. Aktivieren Sie ihn in den Einstellungen oder öffnen Sie den Chat ueber die Chatverwaltung.</p>';
         }
 
         if (!$useTransientMode && !is_user_logged_in()) {
@@ -372,7 +372,7 @@ class Plugin
         $chatId = $useTransientMode ? 0 : (isset($_GET['chat_id']) ? absint($_GET['chat_id']) : 0);
         $roomId = $useTransientMode ? 0 : (isset($_GET['room_id']) ? absint($_GET['room_id']) : 0);
         if (!$useTransientMode && $chatId <= 0) {
-            return '<p>chat_id fehlt in der URL. Oeffnen Sie diese Seite aus der Chatverwaltung.</p>';
+            return '<p>chat_id fehlt in der URL. Öffnen Sie diese Seite aus der Chatverwaltung.</p>';
         }
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
@@ -411,7 +411,7 @@ class Plugin
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>' . ($useTransientMode ? 'Chat (Transient Mode)' : 'Chat') . '</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
-        $html .= '      <button type="button" id="wpcgpt-back-chats">Zurueck zu den Chats</button>';
+        $html .= '      <button type="button" id="wpcgpt-back-chats">Zurück zu den Chats</button>';
         $html .= '    </div>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"' . ($useTransientMode ? ' style="display:none;"' : '') . '></p>';

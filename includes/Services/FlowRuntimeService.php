@@ -164,7 +164,7 @@ class FlowRuntimeService
         }
 
         if (!is_array($rawResult)) {
-            return new WP_Error('flow_invalid_result', 'Flow-Handler muss ein Array zurueckgeben.', array('status' => 500));
+            return new WP_Error('flow_invalid_result', 'Flow-Handler muss ein Array zurückgeben.', array('status' => 500));
         }
 
         return $this->normalizeResult($rawResult);
@@ -200,7 +200,7 @@ class FlowRuntimeService
         $initialPrompt = isset($rawResult['initial_prompt']) ? trim((string) $rawResult['initial_prompt']) : '';
 
         if ($assistantReply === '' && $initialPrompt === '') {
-            return new WP_Error('flow_missing_reply', 'Flow muss assistant_reply oder initial_prompt zurueckgeben.', array('status' => 500));
+            return new WP_Error('flow_missing_reply', 'Flow muss assistant_reply oder initial_prompt zurückgeben.', array('status' => 500));
         }
 
         $state = isset($rawResult['state']) && is_array($rawResult['state']) ? $rawResult['state'] : array();

@@ -11,7 +11,6 @@
     var createBtn = document.getElementById('wpcgpt-create-room');
     var createChatBtn = document.getElementById('wpcgpt-create-chat');
     var sendMessageBtn = document.getElementById('wpcgpt-send-message');
-    var refreshBtn = document.getElementById('wpcgpt-refresh');
     var nameInput = document.getElementById('wpcgpt-room-name');
     var chatTitleInput = document.getElementById('wpcgpt-chat-title');
     var messageInput = document.getElementById('wpcgpt-message-input');
@@ -61,12 +60,12 @@
 
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
-            deleteBtn.textContent = 'Loeschen';
+            deleteBtn.textContent = 'Löschen';
             deleteBtn.style.marginLeft = '8px';
             deleteBtn.addEventListener('click', function () {
                 request('/rooms/' + room.id, { method: 'DELETE' })
                     .then(function () {
-                        setStatus('Raum geloescht.', false);
+                        setStatus('Raum gelöscht.', false);
                         loadRooms();
                     })
                     .catch(function (error) {
@@ -78,7 +77,7 @@
 
             var openBtn = document.createElement('button');
             openBtn.type = 'button';
-            openBtn.textContent = 'Oeffnen';
+            openBtn.textContent = 'Öffnen';
             openBtn.style.marginLeft = '8px';
             openBtn.addEventListener('click', function () {
                 selectedRoomId = room.id;
@@ -109,7 +108,7 @@
 
             var openBtn = document.createElement('button');
             openBtn.type = 'button';
-            openBtn.textContent = 'Chat oeffnen';
+            openBtn.textContent = 'Chat öffnen';
             openBtn.style.marginLeft = '8px';
             openBtn.addEventListener('click', function () {
                 selectedChatId = chat.id;
@@ -196,7 +195,7 @@
 
     createChatBtn.addEventListener('click', function () {
         if (!selectedRoomId) {
-            setStatus('Bitte zuerst einen Raum waehlen.', true);
+            setStatus('Bitte zuerst einen Raum wählen.', true);
             return;
         }
 
@@ -218,7 +217,7 @@
 
     sendMessageBtn.addEventListener('click', function () {
         if (!selectedChatId) {
-            setStatus('Bitte zuerst einen Chat waehlen.', true);
+            setStatus('Bitte zuerst einen Chat wählen.', true);
             return;
         }
 

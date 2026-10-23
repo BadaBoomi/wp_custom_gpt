@@ -175,7 +175,7 @@
         }
 
         var frame = wp.media({
-            title: 'Icon waehlen',
+            title: 'Icon wählen',
             button: {
                 text: 'Icon verwenden',
             },
@@ -257,7 +257,7 @@
 
         var iconUploadBtn = document.createElement('button');
         iconUploadBtn.type = 'button';
-        iconUploadBtn.textContent = 'Icon waehlen';
+        iconUploadBtn.textContent = 'Icon wählen';
         iconUploadBtn.addEventListener('click', function () {
             openImagePicker(function (selected) {
                 iconIdInput.value = String(selected.id || 0);

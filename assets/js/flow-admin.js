@@ -218,7 +218,7 @@
         }
 
         if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            throw new Error("Bitte waehlen Sie eine Datei zum Hochladen aus.");
+            throw new Error("Bitte wählen Sie eine Datei zum Hochladen aus.");
         }
 
         await uploadFile("/flows/" + encodeURIComponent(flowType) + "/files", fileInput.files[0]);
@@ -234,7 +234,7 @@
         }
 
         if (!fileDeleteIdInput) {
-            throw new Error("Eingabe fuer Loeschen ist nicht verfuegbar.");
+            throw new Error("Eingabe fuer Löschen ist nicht verfuegbar.");
         }
 
         const fileId = parseInt(String(fileDeleteIdInput.value || "0"), 10);
@@ -243,7 +243,7 @@
         }
 
         await request("/flows/" + encodeURIComponent(flowType) + "/files/" + String(fileId), "DELETE");
-        setStatus("Datei geloescht: #" + String(fileId), false);
+        setStatus("Datei gelöscht: #" + String(fileId), false);
         await refreshFlowFiles();
     }
 

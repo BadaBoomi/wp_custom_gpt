@@ -155,7 +155,7 @@
 
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
-            deleteBtn.textContent = 'Loeschen';
+            deleteBtn.textContent = 'Löschen';
             deleteBtn.addEventListener('click', function () {
                 if (!window.confirm('Sind Sie sicher? Der Raum wird mit allen Inhalten gelöscht, diese Aktion kann nicht rückgängig gemacht werden')) {
                     return;
@@ -163,7 +163,7 @@
 
                 request('/rooms/' + room.id, { method: 'DELETE' })
                     .then(function () {
-                        setStatus('Raum geloescht.', false);
+                        setStatus('Raum gelöscht.', false);
                         loadRooms();
                     })
                     .catch(function (error) {
@@ -174,7 +174,7 @@
 
             var enterBtn = document.createElement('button');
             enterBtn.type = 'button';
-            enterBtn.textContent = 'Oeffnen';
+            enterBtn.textContent = 'Öffnen';
             enterBtn.addEventListener('click', function () {
                 if (!chatsPage) {
                     setStatus('chats_page fehlt im Shortcode.', true);

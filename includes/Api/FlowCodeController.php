@@ -180,7 +180,7 @@ class FlowCodeController
 
         $deleted = $this->flowFileService->deleteFile($flowType, $fileId);
         if (!$deleted) {
-            return new WP_Error('flow_file_delete_failed', 'Flow-Datei konnte nicht geloescht werden.', array('status' => 404));
+            return new WP_Error('flow_file_delete_failed', 'Flow-Datei konnte nicht gelöscht werden.', array('status' => 404));
         }
 
         return rest_ensure_response(array('ok' => true));
