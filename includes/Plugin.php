@@ -276,18 +276,22 @@ class Plugin
 
         $atts = shortcode_atts(array(
             'chats_page' => '',
+            'width' => '',
+            'max_width' => '',
+            'min_width' => '',
         ), $atts, 'wp_custom_gpt_rooms');
 
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
         $roomAttributesJson = $this->encodeRoomAttributes();
+        $containerStyle = $this->buildSizingStyle($atts, $themeStyle);
 
         wp_enqueue_script(self::ROOMS_SCRIPT_HANDLE);
         wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
+        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($containerStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Raumverwaltung</h2>';
         $html .= '  </div>';
@@ -316,6 +320,9 @@ class Plugin
         $atts = shortcode_atts(array(
             'rooms_page' => '',
             'chat_page' => '',
+            'width' => '',
+            'max_width' => '',
+            'min_width' => '',
         ), $atts, 'wp_custom_gpt_chats');
 
         $roomsPage = $this->resolvePageUrl((string) $atts['rooms_page']);
@@ -324,12 +331,13 @@ class Plugin
         $roomAttributesJson = $this->encodeRoomAttributes();
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
+        $containerStyle = $this->buildSizingStyle($atts, $themeStyle);
 
         wp_enqueue_script(self::CHATS_SCRIPT_HANDLE);
         wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
+        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($containerStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
@@ -376,9 +384,17 @@ class Plugin
             return '<p>chat_id fehlt in der URL. Öffnen Sie diese Seite aus der Chatverwaltung.</p>';
         }
 
+        $atts = shortcode_atts(array(
+            'chats_page' => '',
+            'width' => '',
+            'max_width' => '',
+            'min_width' => '',
+        ), $atts, 'wp_custom_gpt_chat');
+
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
+        $containerStyle = $this->buildSizingStyle($atts, $themeStyle);
         $assistantIconUrl = (string) $frontendUiConfig['assistant_icon_url'];
         $roomAttributesJson = $this->encodeRoomAttributes();
         $transientPrompt = '';
@@ -408,7 +424,7 @@ class Plugin
         wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($containerStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>' . ($useTransientMode ? 'Chat (Transient Mode)' : 'Chat') . '</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
@@ -558,6 +574,38 @@ class Plugin
     /**
      * @param array<string, string> $theme
      */
+    private function buildSizingStyle(array $atts, string $themeStyle = ''): string
+    {
+        $width = trim((string) ($atts['width'] ?? ''));
+        $maxWidth = trim((string) ($atts['max_width'] ?? ''));
+        $minWidth = trim((string) ($atts['min_width'] ?? ''));
+
+        if ($width === '') {
+            $width = '100%';
+        }
+        if ($maxWidth === '') {
+            $maxWidth = $width;
+        }
+        if ($minWidth === '') {
+            $minWidth = '0';
+        }
+
+        $parts = array(
+            'width:' . $width,
+            'max-width:' . $maxWidth,
+            'min-width:' . $minWidth,
+        );
+
+        if ($themeStyle !== '') {
+            $parts[] = $themeStyle;
+        }
+
+        $parts[] = 'box-sizing:border-box';
+        $parts[] = 'display:block';
+
+        return implode(';', $parts);
+    }
+
     private function buildThemeStyleAttribute(array $theme): string
     {
         $map = array(
