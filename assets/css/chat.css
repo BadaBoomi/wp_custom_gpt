@@ -24,8 +24,9 @@
     background: var(--wpcgpt-color-background);
     border: 1px solid var(--wpcgpt-color-border);
     border-radius: 12px;
-    padding: 14px;
+    padding: 12px 14px 14px;
     max-width: 980px;
+    box-sizing: border-box;
 }
 
 .wpcgpt-app .wpcgpt-header {
@@ -103,8 +104,8 @@
 }
 
 .wpcgpt-chat-window {
-    width: 90%;
-    max-width: 90%;
+    width: 100%;
+    max-width: 100%;
     height: 90vh;
     max-height: 90vh;
     overflow-y: auto;
@@ -113,6 +114,23 @@
     border-radius: 10px;
     background: var(--wpcgpt-color-chat-window);
     box-sizing: border-box;
+    margin-bottom: 10px;
+}
+
+.wpcgpt-app .wpcgpt-create {
+    width: 100%;
+    margin: 0;
+}
+
+.wpcgpt-app #wpcgpt-message-input,
+.wpcgpt-app #wpcgpt-action-buttons {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.wpcgpt-app #wpcgpt-message-input {
+    min-height: 80px;
 }
 
 .wpcgpt-chat-window .wpcgpt-chat-empty {
@@ -161,7 +179,9 @@
 
 .wpcgpt-chat-bubble {
     position: relative;
-    max-width: 78%;
+    flex: 0 1 auto;
+    max-width: 100%;
+    min-width: 0;
     padding: 10px 12px 6px;
     border-radius: 12px;
     background: var(--wpcgpt-color-user-bubble);

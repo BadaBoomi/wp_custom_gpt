@@ -434,10 +434,10 @@ class Plugin
         $html .= '  <p id="wpcgpt-room-label"' . ($useTransientMode ? ' style="display:none;"' : '') . '></p>';
         $html .= '  <div id="wpcgpt-message-output" class="wpcgpt-chat-window"></div>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:760px;"></div>';
+        $html .= '    <div id="wpcgpt-action-buttons" style="display:flex;flex-wrap:wrap;gap:8px;width:100%;max-width:100%;"></div>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
-        $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Nachricht eingeben" style="width:100%;max-width:720px;"></textarea>';
+        $html .= '    <textarea id="wpcgpt-message-input" rows="4" placeholder="Nachricht eingeben" style="width:100%;max-width:100%;box-sizing:border-box;"></textarea>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <button type="button" id="wpcgpt-send-message">Senden</button>';
