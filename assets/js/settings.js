@@ -11,6 +11,8 @@
     var apiKeyCurrentEl = document.getElementById('wpcgpt-api-key-current');
     var configurationRowsEl = document.getElementById('wpcgpt-configuration-rows');
     var configurationAddBtn = document.getElementById('wpcgpt-configuration-add');
+    var roomAttributeRowsEl = document.getElementById('wpcgpt-room-attribute-rows');
+    var roomAttributeAddBtn = document.getElementById('wpcgpt-room-attribute-add');
     var assistantIconIdInput = document.getElementById('wpcgpt-assistant-icon-id');
     var assistantIconPreview = document.getElementById('wpcgpt-assistant-icon-preview');
     var assistantIconUploadBtn = document.getElementById('wpcgpt-assistant-icon-upload');
@@ -42,6 +44,106 @@
         { key: 'maxPerRoom', type: 'number', placeholder: '0', min: '0' },
         { key: 'promptId', type: 'text', placeholder: 'pmpt_...' },
     ];
+
+    function createRoomAttributeRow(name) {
+        var row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.gap = '8px';
+        row.style.marginBottom = '6px';
+
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = String(name || '');
+        input.placeholder = 'z.B. alias';
+        input.style.flex = '1';
+        input.style.minWidth = '120px';
+
+        var upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.textContent = '↑';
+        upBtn.title = 'nach oben';
+        upBtn.addEventListener('click', function () {
+            if (!roomAttributeRowsEl) {
+                return;
+            }
+
+            var siblings = Array.prototype.slice.call(roomAttributeRowsEl.children);
+            var index = siblings.indexOf(row);
+            if (index > 0) {
+                roomAttributeRowsEl.insertBefore(row, siblings[index - 1]);
+            }
+        });
+
+        var downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.textContent = '↓';
+        downBtn.title = 'nach unten';
+        downBtn.addEventListener('click', function () {
+            if (!roomAttributeRowsEl) {
+                return;
+            }
+
+            var siblings = Array.prototype.slice.call(roomAttributeRowsEl.children);
+            var index = siblings.indexOf(row);
+            if (index >= 0 && index < siblings.length - 1) {
+                roomAttributeRowsEl.insertBefore(row, siblings[index + 1].nextSibling || null);
+            }
+        });
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = 'Entfernen';
+        removeBtn.addEventListener('click', function () {
+            if (row.parentNode) {
+                row.parentNode.removeChild(row);
+            }
+        });
+
+        row.appendChild(input);
+        row.appendChild(upBtn);
+        row.appendChild(downBtn);
+        row.appendChild(removeBtn);
+        return row;
+    }
+
+    function renderRoomAttributeRows(values) {
+        if (!roomAttributeRowsEl) {
+            return;
+        }
+
+        roomAttributeRowsEl.innerHTML = '';
+        (values || []).forEach(function (value) {
+            roomAttributeRowsEl.appendChild(createRoomAttributeRow(value));
+        });
+    }
+
+    function collectRoomAttributes() {
+        if (!roomAttributeRowsEl) {
+            return [];
+        }
+
+        var result = [];
+        var seen = {};
+
+        Array.prototype.forEach.call(roomAttributeRowsEl.children, function (row) {
+            var input = row.querySelector('input');
+            if (!input) {
+                return;
+            }
+
+            var name = String(input.value || '').trim().toLowerCase();
+            name = name.replace(/[^a-z0-9 _\-]/g, '').trim();
+            if (!name || seen[name]) {
+                return;
+            }
+
+            seen[name] = true;
+            result.push(name);
+        });
+
+        return result;
+    }
 
     function renderIconPreview(container, iconUrl) {
         if (!container) {
@@ -304,6 +406,7 @@
 
     function fillForm(data) {
         renderConfigurationRows(data.configuration_entries || []);
+        renderRoomAttributeRows(data.room_attributes || []);
 
         if (transientModeEnabledInput) {
             transientModeEnabledInput.checked = !!(data && data.transient_mode_enabled);
@@ -348,6 +451,7 @@
 
         var payload = {
             configuration_entries: collectConfigurationEntries(),
+            room_attributes: collectRoomAttributes(),
             assistant_icon_id: assistantIconIdInput ? parseInt(assistantIconIdInput.value || '0', 10) || 0 : 0,
             transient_mode_enabled: transientModeEnabledInput ? !!transientModeEnabledInput.checked : false,
             ui_theme: {},
@@ -381,6 +485,12 @@
             if (configurationRowsEl) {
                 configurationRowsEl.appendChild(createConfigurationRow(null));
             }
+        });
+    }
+
+    if (roomAttributeAddBtn && roomAttributeRowsEl) {
+        roomAttributeAddBtn.addEventListener('click', function () {
+            roomAttributeRowsEl.appendChild(createRoomAttributeRow(''));
         });
     }
 

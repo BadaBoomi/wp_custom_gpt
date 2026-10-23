@@ -113,33 +113,52 @@ import DOMPurify from 'dompurify';
         }
     }
 
+    function getConfiguredRoomAttributes() {
+        var raw = [];
+        try {
+            var rootValue = JSON.parse(root.getAttribute('data-room-attributes') || '[]');
+            if (Array.isArray(rootValue)) {
+                raw = rootValue;
+            }
+        } catch (error) {
+            raw = [];
+        }
+
+        var result = [];
+        var seen = {};
+        (raw || []).forEach(function (entry) {
+            var name = String(entry || '').trim().toLowerCase();
+            name = name.replace(/[^a-z0-9 _\-]/g, '').trim();
+            if (!name || seen[name]) {
+                return;
+            }
+            seen[name] = true;
+            result.push(name);
+        });
+
+        return result;
+    }
+
     function formatRoomDisplayName(room) {
         var baseName = String((room && room.name) || '').trim();
         var attrs = parseCustomAttributes(room && room.custom_attributes);
-        var orderedKeys = Object.keys(attrs).sort(function (a, b) {
-            var aKey = String(a || '').trim();
-            var bKey = String(b || '').trim();
-            var aAlias = aKey.toLowerCase() === 'alias';
-            var bAlias = bKey.toLowerCase() === 'alias';
-
-            if (aAlias && !bAlias) {
-                return -1;
+        var configured = getConfiguredRoomAttributes();
+        var keyMap = {};
+        Object.keys(attrs).forEach(function (key) {
+            var cleanKey = String(key || '').trim();
+            if (!cleanKey) {
+                return;
             }
-            if (!aAlias && bAlias) {
-                return 1;
-            }
-
-            return aKey.localeCompare(bKey, 'de', { sensitivity: 'base' });
+            keyMap[cleanKey.toLowerCase()] = { key: cleanKey, value: String(attrs[key] || '').trim() };
         });
 
-        var attrItems = orderedKeys
-            .map(function (key) {
-                var cleanKey = String(key || '').trim();
-                var cleanValue = String(attrs[key] || '').trim();
-                if (!cleanKey || !cleanValue) {
+        var attrItems = configured
+            .map(function (name) {
+                var match = keyMap[name.toLowerCase()];
+                if (!match || !match.value) {
                     return '';
                 }
-                return cleanKey + ': ' + cleanValue;
+                return match.key + ': ' + match.value;
             })
             .filter(function (entry) {
                 return entry !== '';

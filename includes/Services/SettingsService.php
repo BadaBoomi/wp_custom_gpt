@@ -10,6 +10,7 @@ class SettingsService
     private const OPTION_ASSISTANT_ICON_URL = 'wpcgpt_assistant_icon_url';
     private const OPTION_ASSISTANT_ICON_ID = 'wpcgpt_assistant_icon_id';
     private const OPTION_CONFIGURATION_ENTRIES = 'wpcgpt_configuration_entries';
+    private const OPTION_ROOM_ATTRIBUTES = 'wpcgpt_room_attributes';
     private const OPTION_TRANSIENT_MODE_ENABLED = 'wpcgpt_transient_mode_enabled';
     private const OPTION_UI_THEME = 'wpcgpt_ui_theme';
 
@@ -72,6 +73,7 @@ class SettingsService
             'openai_debug_enabled' => $this->toBool(get_option(self::OPTION_OPENAI_DEBUG_ENABLED, '0')),
             'transient_mode_enabled' => $this->isTransientModeEnabled(),
             'configuration_entries' => $this->getConfigurationEntries(),
+            'room_attributes' => $this->getRoomAttributes(),
             'assistant_icon_id' => $assistantIconId,
             'assistant_icon_url' => esc_url_raw($assistantIconUrl),
             'ui_theme' => $this->getUiThemeSettings(),
@@ -92,6 +94,10 @@ class SettingsService
 
         if (array_key_exists('configuration_entries', $payload) && is_array($payload['configuration_entries'])) {
             $this->saveConfigurationRows($this->normalizeConfigurationEntries($payload['configuration_entries']));
+        }
+
+        if (array_key_exists('room_attributes', $payload) && is_array($payload['room_attributes'])) {
+            $this->saveRoomAttributes($this->normalizeRoomAttributes($payload['room_attributes']));
         }
 
         if (array_key_exists('openai_debug_enabled', $payload)) {
@@ -189,6 +195,55 @@ class SettingsService
 
         $starters = (string) get_option(self::OPTION_STARTERS, '');
         return $this->hydrateConfigurationEntries($this->parseStarterPromptsMarkdown($starters));
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getRoomAttributes(): array
+    {
+        $stored = get_option(self::OPTION_ROOM_ATTRIBUTES, array());
+        if (!is_array($stored)) {
+            $stored = array();
+        }
+
+        return $this->normalizeRoomAttributes($stored);
+    }
+
+    /**
+     * @param array<int, mixed> $values
+     * @return string[]
+     */
+    public function normalizeRoomAttributes(array $values): array
+    {
+        $names = array();
+        $seen = array();
+
+        foreach ($values as $value) {
+            $name = strtolower(trim((string) sanitize_text_field((string) $value)));
+            if ($name === '') {
+                continue;
+            }
+
+            $name = preg_replace('/[^a-z0-9 _\-]/', '', $name);
+            $name = is_string($name) ? trim($name) : '';
+            if ($name === '' || isset($seen[$name])) {
+                continue;
+            }
+
+            $seen[$name] = true;
+            $names[] = $name;
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param string[] $values
+     */
+    public function saveRoomAttributes(array $values): void
+    {
+        update_option(self::OPTION_ROOM_ATTRIBUTES, $values, false);
     }
 
     public function findConfigurationEntryByLabel(string $label): ?array

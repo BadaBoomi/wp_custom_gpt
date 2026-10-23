@@ -148,14 +148,18 @@ class Plugin
         )
     );
 
+        $settingsService = new SettingsService();
+
         wp_localize_script(self::ROOMS_SCRIPT_HANDLE, 'WPCGPT_ROOMS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
+            'roomAttributes' => $settingsService->getRoomAttributes(),
         ));
 
         wp_localize_script(self::CHATS_SCRIPT_HANDLE, 'WPCGPT_CHATS_CONFIG', array(
             'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
             'nonce' => wp_create_nonce('wp_rest'),
+            'roomAttributes' => $settingsService->getRoomAttributes(),
         ));
 
         wp_localize_script(self::CHAT_SCRIPT_HANDLE, 'WPCGPT_CHAT_CONFIG', array(
@@ -276,12 +280,13 @@ class Plugin
         $chatsPage = $this->resolvePageUrl((string) $atts['chats_page']);
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
+        $roomAttributesJson = $this->encodeRoomAttributes();
 
         wp_enqueue_script(self::ROOMS_SCRIPT_HANDLE);
         wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
+        $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Raumverwaltung</h2>';
         $html .= '  </div>';
@@ -315,6 +320,7 @@ class Plugin
         $roomsPage = $this->resolvePageUrl((string) $atts['rooms_page']);
         $chatPage = $this->resolvePageUrl((string) $atts['chat_page']);
         $configurationEntriesJson = $this->encodeConfigurationEntries();
+        $roomAttributesJson = $this->encodeRoomAttributes();
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
 
@@ -322,7 +328,7 @@ class Plugin
         wp_enqueue_style(self::COMMON_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
+        $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
@@ -373,6 +379,7 @@ class Plugin
         $frontendUiConfig = $this->getFrontendUiConfig();
         $themeStyle = $this->buildThemeStyleAttribute($frontendUiConfig['theme']);
         $assistantIconUrl = (string) $frontendUiConfig['assistant_icon_url'];
+        $roomAttributesJson = $this->encodeRoomAttributes();
         $transientPrompt = '';
 
         if ($useTransientMode) {
@@ -400,7 +407,7 @@ class Plugin
         wp_enqueue_style(self::CHAT_STYLE_HANDLE);
 
         $html = '';
-        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '">';
+        $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '" data-room-attributes="' . esc_attr($roomAttributesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>' . ($useTransientMode ? 'Chat (Transient Mode)' : 'Chat') . '</h2>';
         $html .= '    <div class="wpcgpt-header-actions">';
@@ -447,6 +454,8 @@ class Plugin
         $html .= '  <h2>WP Custom GPT Einstellungen</h2>';
         $html .= '  <div class="wpcgpt-settings-tabs" role="tablist" aria-label="Einstellungsbereiche">';
         $html .= '    <button type="button" id="wpcgpt-tab-general" class="wpcgpt-tab-button is-active" data-tab="general" role="tab" aria-selected="true">Allgemein</button>';
+        $html .= '    <button type="button" id="wpcgpt-tab-chat-types" class="wpcgpt-tab-button" data-tab="chat-types" role="tab" aria-selected="false">Chat-Typen</button>';
+        $html .= '    <button type="button" id="wpcgpt-tab-room-attributes" class="wpcgpt-tab-button" data-tab="room-attributes" role="tab" aria-selected="false">Raum-Attribute</button>';
         $html .= '    <button type="button" id="wpcgpt-tab-appearance" class="wpcgpt-tab-button" data-tab="appearance" role="tab" aria-selected="false">Farben und Schriften</button>';
         $html .= '  </div>';
         $html .= '  <form id="wpcgpt-settings-form">';
@@ -456,6 +465,8 @@ class Plugin
         $html .= '      <p id="wpcgpt-api-key-current"></p>';
         $html .= '      <p><label><input id="wpcgpt-transient-mode-enabled" type="checkbox" /> Transient Mode aktivieren</label><br />';
         $html .= '      <span class="description">Wenn aktiv, kann der Chat-Shortcode mit <code>config_id</code> einen nicht-persistenten, nicht benutzer- und nicht raumgebundenen Dialog starten.</span></p>';
+        $html .= '    </section>';
+        $html .= '    <section id="wpcgpt-settings-tab-chat-types" class="wpcgpt-settings-tab-panel" data-tab-panel="chat-types" role="tabpanel" aria-labelledby="wpcgpt-tab-chat-types" hidden>';
         $html .= '      <h3>Konfigurationseintraege</h3>';
         $html .= '      <p>Eintraege fuer die Auswahl beim Erstellen eines neuen Chats. Das Feld <strong>Prompt</strong> definiert die erste Assistenten-Ausgabe (Begruessung) beim Erstellen eines neuen Chats dieses Typs; die Prompt-ID ist optional und wird fuer alle Anfragen des jeweiligen Chats verwendet.</p>';
         $html .= '      <table id="wpcgpt-configuration-table" style="width:100%;max-width:1200px;border-collapse:collapse;">';
@@ -471,6 +482,12 @@ class Plugin
         $html .= '        <tbody id="wpcgpt-configuration-rows"></tbody>';
         $html .= '      </table>';
         $html .= '      <p><button type="button" id="wpcgpt-configuration-add">Eintrag hinzufuegen</button></p>';
+        $html .= '    </section>';
+        $html .= '    <section id="wpcgpt-settings-tab-room-attributes" class="wpcgpt-settings-tab-panel" data-tab-panel="room-attributes" role="tabpanel" aria-labelledby="wpcgpt-tab-room-attributes" hidden>';
+        $html .= '      <h3>Raum-Attribute</h3>';
+        $html .= '      <p>Die Reihenfolge hier bestimmt die Reihenfolge der Raum-Attribute in der Anzeige. Attribute, die hier nicht aufgefuehrt sind, werden im Raum nicht angezeigt.</p>';
+        $html .= '      <div id="wpcgpt-room-attribute-rows" style="display:flex;flex-direction:column;gap:10px;max-width:640px;"></div>';
+        $html .= '      <p><button type="button" id="wpcgpt-room-attribute-add">Attribut hinzufuegen</button></p>';
         $html .= '    </section>';
         $html .= '    <section id="wpcgpt-settings-tab-appearance" class="wpcgpt-settings-tab-panel" data-tab-panel="appearance" role="tabpanel" aria-labelledby="wpcgpt-tab-appearance" hidden>';
         $html .= '      <h3>Darstellung fuer Chat, Chatverwaltung und Raumverwaltung</h3>';
@@ -511,6 +528,14 @@ class Plugin
     {
         $settingsService = new SettingsService();
         $encoded = wp_json_encode($settingsService->getConfigurationEntries());
+
+        return is_string($encoded) ? $encoded : '[]';
+    }
+
+    private function encodeRoomAttributes(): string
+    {
+        $settingsService = new SettingsService();
+        $encoded = wp_json_encode($settingsService->getRoomAttributes());
 
         return is_string($encoded) ? $encoded : '[]';
     }
