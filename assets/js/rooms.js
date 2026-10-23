@@ -7,7 +7,6 @@
     var roomList = document.getElementById('wpcgpt-room-list');
     var statusEl = document.getElementById('wpcgpt-status');
     var createBtn = document.getElementById('wpcgpt-create-room');
-    var refreshBtn = document.getElementById('wpcgpt-refresh');
     var nameInput = document.getElementById('wpcgpt-room-name');
     var chatsPage = root.getAttribute('data-chats-page') || '';
 
@@ -114,13 +113,31 @@
 
         rooms.forEach(function (room) {
             var li = document.createElement('li');
-            li.textContent = formatRoomDisplayName(room) + ' (ID: ' + room.id + ')';
+            li.style.display = 'flex';
+            li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
+            li.style.gap = '12px';
+
+            var title = document.createElement('div');
+            title.textContent = formatRoomDisplayName(room) + ' (ID: ' + room.id + ')';
+            title.style.flex = '1';
+            title.style.minWidth = '0';
+            li.appendChild(title);
+
+            var actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.justifyContent = 'flex-end';
+            actions.style.gap = '8px';
+            actions.style.flexWrap = 'wrap';
 
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
             deleteBtn.textContent = 'Loeschen';
-            deleteBtn.style.marginLeft = '8px';
             deleteBtn.addEventListener('click', function () {
+                if (!window.confirm('Sind Sie sicher? Der Raum wird mit allen Inhalten gelöscht, diese Aktion kann nicht rückgängig gemacht werden')) {
+                    return;
+                }
+
                 request('/rooms/' + room.id, { method: 'DELETE' })
                     .then(function () {
                         setStatus('Raum geloescht.', false);
@@ -130,12 +147,11 @@
                         setStatus(error.message, true);
                     });
             });
-            li.appendChild(deleteBtn);
+            actions.appendChild(deleteBtn);
 
             var enterBtn = document.createElement('button');
             enterBtn.type = 'button';
             enterBtn.textContent = 'Oeffnen';
-            enterBtn.style.marginLeft = '8px';
             enterBtn.addEventListener('click', function () {
                 if (!chatsPage) {
                     setStatus('chats_page fehlt im Shortcode.', true);
@@ -144,8 +160,9 @@
 
                 window.location.href = addQuery(chatsPage, 'room_id', room.id);
             });
-            li.appendChild(enterBtn);
+            actions.appendChild(enterBtn);
 
+            li.appendChild(actions);
             roomList.appendChild(li);
         });
     }
@@ -182,8 +199,6 @@
                 setStatus(error.message, true);
             });
     });
-
-    refreshBtn.addEventListener('click', loadRooms);
 
     loadRooms();
 })();

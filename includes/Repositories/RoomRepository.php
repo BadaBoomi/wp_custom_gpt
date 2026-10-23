@@ -8,12 +8,18 @@ class RoomRepository
 {
     private wpdb $wpdb;
     private string $table;
+    private string $chatsTable;
+    private string $messagesTable;
+    private string $flowSessionsTable;
 
     public function __construct()
     {
         global $wpdb;
         $this->wpdb = $wpdb;
         $this->table = $wpdb->prefix . 'wpcgpt_rooms';
+        $this->chatsTable = $wpdb->prefix . 'wpcgpt_chats';
+        $this->messagesTable = $wpdb->prefix . 'wpcgpt_messages';
+        $this->flowSessionsTable = $wpdb->prefix . 'wpcgpt_flow_sessions';
     }
 
     public function listByUser(int $userId): array
@@ -78,6 +84,43 @@ class RoomRepository
 
     public function delete(int $roomId, int $userId): bool
     {
+        $chatIds = $this->wpdb->get_col($this->wpdb->prepare(
+            "SELECT id FROM {$this->chatsTable} WHERE room_id = %d AND user_id = %d",
+            $roomId,
+            $userId
+        ));
+
+        if (!empty($chatIds)) {
+            foreach ($chatIds as $chatId) {
+                $this->wpdb->delete(
+                    $this->messagesTable,
+                    array(
+                        'chat_id' => (int) $chatId,
+                        'user_id' => $userId,
+                    ),
+                    array('%d', '%d')
+                );
+
+                $this->wpdb->delete(
+                    $this->flowSessionsTable,
+                    array(
+                        'chat_id' => (int) $chatId,
+                        'user_id' => $userId,
+                    ),
+                    array('%d', '%d')
+                );
+            }
+
+            $this->wpdb->delete(
+                $this->chatsTable,
+                array(
+                    'room_id' => $roomId,
+                    'user_id' => $userId,
+                ),
+                array('%d', '%d')
+            );
+        }
+
         $deleted = $this->wpdb->delete(
             $this->table,
             array(

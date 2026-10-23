@@ -10,6 +10,7 @@ class ChatRepository
     private string $roomsTable;
     private string $chatsTable;
     private string $messagesTable;
+    private string $flowSessionsTable;
 
     public function __construct()
     {
@@ -18,6 +19,7 @@ class ChatRepository
         $this->roomsTable = $wpdb->prefix . 'wpcgpt_rooms';
         $this->chatsTable = $wpdb->prefix . 'wpcgpt_chats';
         $this->messagesTable = $wpdb->prefix . 'wpcgpt_messages';
+        $this->flowSessionsTable = $wpdb->prefix . 'wpcgpt_flow_sessions';
     }
 
     public function listChatsForRoom(int $roomId, int $userId): array
@@ -165,6 +167,42 @@ class ChatRepository
     public function getChatForUser(int $chatId, int $userId): ?array
     {
         return $this->findChatForUser($chatId, $userId);
+    }
+
+    public function delete(int $chatId, int $userId): bool
+    {
+        if (!$this->chatExistsForUser($chatId, $userId)) {
+            return false;
+        }
+
+        $this->wpdb->delete(
+            $this->messagesTable,
+            array(
+                'chat_id' => $chatId,
+                'user_id' => $userId,
+            ),
+            array('%d', '%d')
+        );
+
+        $this->wpdb->delete(
+            $this->flowSessionsTable,
+            array(
+                'chat_id' => $chatId,
+                'user_id' => $userId,
+            ),
+            array('%d', '%d')
+        );
+
+        $deleted = $this->wpdb->delete(
+            $this->chatsTable,
+            array(
+                'id' => $chatId,
+                'user_id' => $userId,
+            ),
+            array('%d', '%d')
+        );
+
+        return $deleted !== false && $deleted > 0;
     }
 
     public function updateConversationId(int $chatId, int $userId, string $conversationId): bool

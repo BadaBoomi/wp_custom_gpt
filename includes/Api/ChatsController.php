@@ -62,8 +62,11 @@ class ChatsController
                 'methods' => 'GET',
                 'callback' => array($this, 'getChat'),
                 'permission_callback' => array($this, 'isLoggedIn'),
-            ),
-        ));
+            ),            array(
+                'methods' => 'DELETE',
+                'callback' => array($this, 'deleteChat'),
+                'permission_callback' => array($this, 'isLoggedIn'),
+            ),        ));
 
         register_rest_route(self::NAMESPACE, '/chats/(?P<chatId>\\d+)/messages', array(
             array(
@@ -239,6 +242,18 @@ class ChatsController
         }
 
         return rest_ensure_response($chat);
+    }
+
+    public function deleteChat(WP_REST_Request $request)
+    {
+        $chatId = (int) $request->get_param('chatId');
+        $deleted = $this->chatRepository->delete($chatId, (int) get_current_user_id());
+
+        if (!$deleted) {
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
+        }
+
+        return rest_ensure_response(array('deleted' => true));
     }
 
     public function listMessagesForChat(WP_REST_Request $request): array

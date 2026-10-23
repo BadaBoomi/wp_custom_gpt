@@ -51,7 +51,6 @@ import DOMPurify from 'dompurify';
     var statusEl = document.getElementById('wpcgpt-status');
     var actionButtonsEl = document.getElementById('wpcgpt-action-buttons');
     var sendMessageBtn = document.getElementById('wpcgpt-send-message');
-    var refreshMessagesBtn = document.getElementById('wpcgpt-refresh-messages');
     var backChatsLink = document.getElementById('wpcgpt-back-chats');
     var messageInput = document.getElementById('wpcgpt-message-input');
     var roomLabelEl = document.getElementById('wpcgpt-room-label');
@@ -527,16 +526,6 @@ import DOMPurify from 'dompurify';
             });
     });
 
-    refreshMessagesBtn.addEventListener('click', function () {
-        if (transientMode) {
-            transientMessages = [];
-            loadMessages();
-            setStatus('Verlauf wurde geleert.', false);
-            return;
-        }
-
-        loadMessages();
-    });
     backChatsLink.addEventListener('click', goBackToChats);
     messageOutput.addEventListener('scroll', function () {
         shouldStickToBottom = isNearBottom();

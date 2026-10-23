@@ -8,7 +8,6 @@
     var statusEl = document.getElementById('wpcgpt-status');
     var roomLabelEl = document.getElementById('wpcgpt-room-label');
     var createChatBtn = document.getElementById('wpcgpt-create-chat');
-    var refreshChatsBtn = document.getElementById('wpcgpt-refresh-chats');
     var backRoomsLink = document.getElementById('wpcgpt-back-rooms');
     var chatTitleInput = document.getElementById('wpcgpt-chat-title');
     var configurationSelect = document.getElementById('wpcgpt-chat-configuration');
@@ -33,13 +32,17 @@
         }
 
         configurationSelect.innerHTML = '';
+        configurationSelect.required = true;
 
-        var placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = configurationEntries.length
-            ? 'Zweck waehlen (optional)'
-            : 'Keine Konfigurationseintraege vorhanden';
-        configurationSelect.appendChild(placeholder);
+        if (!configurationEntries.length) {
+            var none = document.createElement('option');
+            none.value = '';
+            none.textContent = 'Keine Konfigurationseintraege vorhanden';
+            none.disabled = true;
+            none.selected = true;
+            configurationSelect.appendChild(none);
+            return;
+        }
 
         configurationEntries.forEach(function (entry) {
             var label = String((entry && entry.label) || '').trim();
@@ -50,8 +53,15 @@
             var option = document.createElement('option');
             option.value = label;
             option.textContent = label;
+            if (configurationSelect.options.length === 0) {
+                option.selected = true;
+            }
             configurationSelect.appendChild(option);
         });
+
+        if (!configurationSelect.value) {
+            configurationSelect.selectedIndex = 0;
+        }
     }
 
     function setStatus(message, isError) {
@@ -166,13 +176,27 @@
 
         chats.forEach(function (chat) {
             var li = document.createElement('li');
+            li.style.display = 'flex';
+            li.style.justifyContent = 'space-between';
+            li.style.alignItems = 'center';
+            li.style.gap = '12px';
+
             var configLabel = String(chat.config_label || '').trim();
-            li.textContent = chat.title + ' (ID: ' + chat.id + ')' + (configLabel ? ' - ' + configLabel : '');
+            var title = document.createElement('div');
+            title.textContent = chat.title + ' (ID: ' + chat.id + ')' + (configLabel ? ' - ' + configLabel : '');
+            title.style.flex = '1';
+            title.style.minWidth = '0';
+            li.appendChild(title);
+
+            var actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.justifyContent = 'flex-end';
+            actions.style.gap = '8px';
+            actions.style.flexWrap = 'wrap';
 
             var continueBtn = document.createElement('button');
             continueBtn.type = 'button';
             continueBtn.textContent = 'Fortsetzen';
-            continueBtn.style.marginLeft = '8px';
             continueBtn.addEventListener('click', function () {
                 var targetUrl = buildChatUrl(chat.id);
                 if (!targetUrl) {
@@ -181,8 +205,28 @@
                 }
                 window.location.href = targetUrl;
             });
+            actions.appendChild(continueBtn);
 
-            li.appendChild(continueBtn);
+            var deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Loeschen';
+            deleteBtn.addEventListener('click', function () {
+                if (!window.confirm('Sind Sie sicher dass Sie den kompletten Chatverlauf löschen wollen? Diese Aktion kann nicht rückgängig gemacht werden')) {
+                    return;
+                }
+
+                request('/chats/' + chat.id, { method: 'DELETE' })
+                    .then(function () {
+                        setStatus('Chat geloescht.', false);
+                        loadChats();
+                    })
+                    .catch(function (error) {
+                        setStatus(error.message, true);
+                    });
+            });
+            actions.appendChild(deleteBtn);
+
+            li.appendChild(actions);
             chatList.appendChild(li);
         });
     }
@@ -221,7 +265,12 @@
     createChatBtn.addEventListener('click', function () {
         var title = (chatTitleInput.value || '').trim() || 'Neuer Chat';
 
-        var configurationLabel = configurationSelect ? configurationSelect.value : '';
+        if (!configurationSelect || !configurationSelect.value) {
+            setStatus('Bitte einen Chattyp auswählen.', true);
+            return;
+        }
+
+        var configurationLabel = configurationSelect.value;
 
         request('/rooms/' + roomId + '/chats', {
             method: 'POST',
@@ -242,7 +291,6 @@
             });
     });
 
-    refreshChatsBtn.addEventListener('click', loadChats);
     backRoomsLink.addEventListener('click', goBackToRooms);
 
     renderConfigurationOptions();

@@ -284,7 +284,6 @@ class Plugin
         $html .= '<div id="wpcgpt-rooms-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chats-page="' . esc_attr($chatsPage) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Raumverwaltung</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh">Raeume aktualisieren</button>';
         $html .= '  </div>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <input id="wpcgpt-room-name" type="text" maxlength="120" placeholder="Neuer Raumname" />';
@@ -326,17 +325,18 @@ class Plugin
         $html .= '<div id="wpcgpt-chats-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chat-page="' . esc_attr($chatPage) . '" data-rooms-page="' . esc_attr($roomsPage) . '" data-configuration-entries="' . esc_attr($configurationEntriesJson) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>Chatverwaltung</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh-chats">Chats aktualisieren</button>';
+        $html .= '    <div class="wpcgpt-header-actions">';
+        $html .= '      <button type="button" id="wpcgpt-back-rooms">Zurueck zu den Raeumen</button>';
+        $html .= '    </div>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"></p>';
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <input id="wpcgpt-chat-title" type="text" maxlength="120" placeholder="Neuer Chat-Titel" />';
         $html .= '    <label for="wpcgpt-chat-configuration" class="screen-reader-text">Zweck</label>';
-        $html .= '    <select id="wpcgpt-chat-configuration"></select>';
+        $html .= '    <select id="wpcgpt-chat-configuration" required></select>';
         $html .= '    <button type="button" id="wpcgpt-create-chat">Chat erstellen</button>';
         $html .= '  </div>';
         $html .= '  <ul id="wpcgpt-chat-list"></ul>';
-        $html .= '  <p><a id="wpcgpt-back-rooms" href="#">Zurueck zu den Raeumen</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
@@ -403,7 +403,9 @@ class Plugin
         $html .= '<div id="wpcgpt-chat-app" class="wpcgpt-app" style="' . esc_attr($themeStyle) . '" data-chat-id="' . esc_attr((string) $chatId) . '" data-room-id="' . esc_attr((string) $roomId) . '" data-chats-page="' . esc_attr($chatsPage) . '" data-assistant-icon-url="' . esc_attr($assistantIconUrl) . '" data-transient-mode="' . ($useTransientMode ? '1' : '0') . '" data-transient-config-id="' . esc_attr((string) $transientConfigId) . '" data-transient-prompt="' . esc_attr($transientPrompt) . '">';
         $html .= '  <div class="wpcgpt-header">';
         $html .= '    <h2>' . ($useTransientMode ? 'Chat (Transient Mode)' : 'Chat') . '</h2>';
-        $html .= '    <button type="button" id="wpcgpt-refresh-messages">' . ($useTransientMode ? 'Verlauf leeren' : 'Nachrichten aktualisieren') . '</button>';
+        $html .= '    <div class="wpcgpt-header-actions">';
+        $html .= '      <button type="button" id="wpcgpt-back-chats">Zurueck zu den Chats</button>';
+        $html .= '    </div>';
         $html .= '  </div>';
         $html .= '  <p id="wpcgpt-room-label"' . ($useTransientMode ? ' style="display:none;"' : '') . '></p>';
         $html .= '  <div id="wpcgpt-message-output" class="wpcgpt-chat-window"></div>';
@@ -416,7 +418,6 @@ class Plugin
         $html .= '  <div class="wpcgpt-create">';
         $html .= '    <button type="button" id="wpcgpt-send-message">Senden</button>';
         $html .= '  </div>';
-        $html .= '  <p' . ($useTransientMode ? ' style="display:none;"' : '') . '><a id="wpcgpt-back-chats" href="#">Zurueck zu den Chats</a></p>';
         $html .= '  <p id="wpcgpt-status" aria-live="polite"></p>';
         $html .= '</div>';
 
