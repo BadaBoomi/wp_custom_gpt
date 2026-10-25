@@ -13,3 +13,7 @@
 Thumbs.db
 *.swp
 *.swo
+
+/local_data
+
+wp_custom_gpt.code-workspace
