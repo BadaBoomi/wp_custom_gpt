@@ -4,7 +4,7 @@ namespace WpCustomGpt\Database;
 
 class MigrationRunner
 {
-    private const SCHEMA_VERSION = '5';
+    private const SCHEMA_VERSION = '6';
     private const REQUIRED_TABLE_SUFFIXES = array(
         'wpcgpt_rooms',
         'wpcgpt_chats',
@@ -12,6 +12,10 @@ class MigrationRunner
         'wpcgpt_flow_sessions',
         'wpcgpt_flow_code',
         'wpcgpt_flow_files',
+        'wpcgpt_volume_role_quotas',
+        'wpcgpt_volume_user_roles',
+        'wpcgpt_volume_usage',
+        'wpcgpt_volume_log',
     );
 
     public static function maybeMigrate(): void
