@@ -155,7 +155,7 @@ class ChatsController
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
             $promptId !== '' ? $promptId : null,
-            array()
+            array('user_id' => get_current_user_id())
         );
 
         if (is_wp_error($openAiResult)) {
@@ -413,6 +413,7 @@ class ChatsController
         }
 
         $openAiRequestContext = $this->buildOpenAiRequestContext($chat, $chatId, $userId);
+        $openAiRequestContext['user_id'] = $userId;
         $history = $this->buildOpenAiHistory($chatId, $userId, $message, $openAiRequestContext);
         $promptId = isset($chat['config_prompt_id']) ? trim((string) $chat['config_prompt_id']) : '';
         $openAiResult = $this->openAiService->createAssistantReply(

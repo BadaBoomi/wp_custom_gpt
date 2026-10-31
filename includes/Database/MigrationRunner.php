@@ -98,6 +98,10 @@ class MigrationRunner
         $flowSessionsTable = $wpdb->prefix . 'wpcgpt_flow_sessions';
         $flowCodeTable = $wpdb->prefix . 'wpcgpt_flow_code';
         $flowFilesTable = $wpdb->prefix . 'wpcgpt_flow_files';
+        $volumeRoleQuotasTable = $wpdb->prefix . 'wpcgpt_volume_role_quotas';
+        $volumeUserRolesTable = $wpdb->prefix . 'wpcgpt_volume_user_roles';
+        $volumeUsageTable = $wpdb->prefix . 'wpcgpt_volume_usage';
+        $volumeLogTable = $wpdb->prefix . 'wpcgpt_volume_log';
 
         $sqlRooms = "CREATE TABLE {$roomsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -192,12 +196,57 @@ class MigrationRunner
             KEY idx_created_at (created_at)
         ) {$charsetCollate};";
 
+        $sqlVolumeRoleQuotas = "CREATE TABLE {$volumeRoleQuotasTable} (
+            role_name VARCHAR(100) NOT NULL,
+            monthly_tokens_millions BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (role_name)
+        ) {$charsetCollate};";
+
+        $sqlVolumeUserRoles = "CREATE TABLE {$volumeUserRolesTable} (
+            user_id BIGINT UNSIGNED NOT NULL,
+            role_name VARCHAR(100) NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (user_id),
+            KEY idx_role_name (role_name)
+        ) {$charsetCollate};";
+
+        $sqlVolumeUsage = "CREATE TABLE {$volumeUsageTable} (
+            user_id BIGINT UNSIGNED NOT NULL,
+            month VARCHAR(7) NOT NULL,
+            input_tokens BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            output_tokens BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (user_id, month),
+            KEY idx_month (month)
+        ) {$charsetCollate};";
+
+        $sqlVolumeLog = "CREATE TABLE {$volumeLogTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            event_type VARCHAR(64) NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            role_name VARCHAR(100) NOT NULL DEFAULT '',
+            month VARCHAR(7) NOT NULL DEFAULT '',
+            old_value VARCHAR(255) NOT NULL DEFAULT '',
+            new_value VARCHAR(255) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY idx_event_type (event_type),
+            KEY idx_user_id (user_id),
+            KEY idx_month (month),
+            KEY idx_created_at (created_at)
+        ) {$charsetCollate};";
+
         dbDelta($sqlRooms);
         dbDelta($sqlChats);
         dbDelta($sqlMessages);
         dbDelta($sqlFlowSessions);
         dbDelta($sqlFlowCode);
         dbDelta($sqlFlowFiles);
+        dbDelta($sqlVolumeRoleQuotas);
+        dbDelta($sqlVolumeUserRoles);
+        dbDelta($sqlVolumeUsage);
+        dbDelta($sqlVolumeLog);
 
         update_option('wpcgpt_schema_version', self::SCHEMA_VERSION, false);
     }

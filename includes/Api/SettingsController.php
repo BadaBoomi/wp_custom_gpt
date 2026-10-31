@@ -6,16 +6,19 @@ use WP_Error;
 use WP_REST_Request;
 use WpCustomGpt\Database\MigrationRunner;
 use WpCustomGpt\Services\SettingsService;
+use WpCustomGpt\Services\VolumeLimitService;
 
 class SettingsController
 {
     private const NAMESPACE = 'wp-custom-gpt/v1';
 
     private SettingsService $settingsService;
+    private VolumeLimitService $volumeLimitService;
 
-    public function __construct(SettingsService $settingsService)
+    public function __construct(SettingsService $settingsService, ?VolumeLimitService $volumeLimitService = null)
     {
         $this->settingsService = $settingsService;
+        $this->volumeLimitService = $volumeLimitService ?? new VolumeLimitService();
     }
 
     public function registerRoutes(): void
@@ -56,11 +59,129 @@ class SettingsController
                 'permission_callback' => array($this, 'canManageSettings'),
             ),
         ));
+
+        register_rest_route(self::NAMESPACE, '/volume/roles', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getVolumeRoles'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'saveVolumeRole'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/volume/users', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getVolumeUsers'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/volume/users/(?P<userId>\d+)', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'saveVolumeUserRole'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
+        register_rest_route(self::NAMESPACE, '/volume/log', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getVolumeLog'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
     }
 
     public function getSettings(): array
     {
         return $this->settingsService->getSettingsForAdmin();
+    }
+
+    public function getVolumeRoles(WP_REST_Request $request)
+    {
+        $month = trim((string) $request->get_param('month'));
+        return rest_ensure_response(array(
+            'roles' => $this->volumeLimitService->getAvailableRoles(),
+            'quotas' => $this->volumeLimitService->getRoleQuotas(),
+            'month' => $this->volumeLimitService->normalizeMonth($month),
+        ));
+    }
+
+    public function saveVolumeRole(WP_REST_Request $request)
+    {
+        $payload = $request->get_json_params();
+        if (!is_array($payload)) {
+            return new WP_Error('invalid_payload', 'Request-Body muss JSON sein.', array('status' => 400));
+        }
+
+        $role = trim((string) ($payload['role'] ?? ''));
+        $monthlyTokens = (int) ($payload['monthly_tokens_millions'] ?? 0);
+
+        if ($role === '') {
+            return new WP_Error('invalid_role', 'Rolle ist erforderlich.', array('status' => 400));
+        }
+
+        $saved = $this->volumeLimitService->saveRoleQuota($role, $monthlyTokens);
+        if (!$saved) {
+            return new WP_Error('volume_role_not_saved', 'Role quota konnte nicht gespeichert werden.', array('status' => 500));
+        }
+
+        return rest_ensure_response(array(
+            'role' => $role,
+            'quota' => $this->volumeLimitService->getRoleQuota($role),
+            'roles' => $this->volumeLimitService->getAvailableRoles(),
+            'quotas' => $this->volumeLimitService->getRoleQuotas(),
+        ));
+    }
+
+    public function getVolumeUsers(WP_REST_Request $request)
+    {
+        $month = trim((string) $request->get_param('month'));
+        return rest_ensure_response(array(
+            'users' => $this->volumeLimitService->getUserOverview($month),
+            'roles' => $this->volumeLimitService->getAvailableRoles(),
+            'month' => $this->volumeLimitService->normalizeMonth($month),
+        ));
+    }
+
+    public function saveVolumeUserRole(WP_REST_Request $request)
+    {
+        $userId = (int) $request->get_param('userId');
+        $payload = $request->get_json_params();
+        if (!is_array($payload)) {
+            return new WP_Error('invalid_payload', 'Request-Body muss JSON sein.', array('status' => 400));
+        }
+
+        $role = trim((string) ($payload['role'] ?? ''));
+        if ($userId <= 0 || $role === '') {
+            return new WP_Error('invalid_user_or_role', 'Benutzer und Rolle sind erforderlich.', array('status' => 400));
+        }
+
+        $saved = $this->volumeLimitService->assignUserRole($userId, $role);
+        if (!$saved) {
+            return new WP_Error('volume_user_role_not_saved', 'Benutzerrolle konnte nicht gespeichert werden.', array('status' => 500));
+        }
+
+        return rest_ensure_response(array(
+            'user' => $this->volumeLimitService->getUserUsageSummary($userId),
+            'roles' => $this->volumeLimitService->getAvailableRoles(),
+        ));
+    }
+
+    public function getVolumeLog(WP_REST_Request $request)
+    {
+        $month = trim((string) $request->get_param('month'));
+        $limit = max(1, min(500, (int) $request->get_param('limit')));
+        return rest_ensure_response(array(
+            'entries' => $this->volumeLimitService->getAuditLog($month, $limit),
+            'month' => $this->volumeLimitService->normalizeMonth($month),
+        ));
     }
 
     public function saveSettings(WP_REST_Request $request)

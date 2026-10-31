@@ -9,19 +9,33 @@ class OpenAiService
     private const API_BASE = 'https://api.openai.com/v1';
 
     private SettingsService $settingsService;
+    private ?\WpCustomGpt\Services\VolumeLimitService $volumeLimitService = null;
 
     public function __construct(SettingsService $settingsService)
     {
         $this->settingsService = $settingsService;
     }
 
+    public function setVolumeLimitService(\WpCustomGpt\Services\VolumeLimitService $volumeLimitService): void
+    {
+        $this->volumeLimitService = $volumeLimitService;
+    }
+
     public function createAssistantReply(array $messages, ?string $promptId = null, array $requestContext = array()): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
+        $userId = isset($requestContext['user_id']) ? max(0, (int) $requestContext['user_id']) : 0;
 
         if ($apiKey === '') {
             return new WP_Error('missing_api_key', 'OpenAI API-Key ist nicht konfiguriert.', array('status' => 400));
+        }
+
+        if ($this->volumeLimitService !== null && $userId > 0) {
+            $canUse = $this->volumeLimitService->canUseOpenAiForUser($userId);
+            if (is_wp_error($canUse)) {
+                return $canUse;
+            }
         }
 
         $input = $this->mapMessagesToInput($messages);
@@ -67,6 +81,10 @@ class OpenAiService
         $body = $this->requestResponsesApi($payload);
         if (is_wp_error($body)) {
             return $body;
+        }
+
+        if ($this->volumeLimitService !== null && $userId > 0) {
+            $this->volumeLimitService->recordUsageFromOpenAiResponse($userId, $body);
         }
 
         $assistantText = $this->extractAssistantText($body);
