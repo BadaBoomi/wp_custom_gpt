@@ -56,6 +56,7 @@ add_action('wp_enqueue_scripts', 'wpcgpt_enqueue_frontend_assets');
 
 require_once WPCGPT_PLUGIN_DIR . 'includes/Database/MigrationRunner.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/SettingsService.php';
+require_once WPCGPT_PLUGIN_DIR . 'includes/Services/VolumeLimitService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/OpenAiService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/FlowRuntimeService.php';
 require_once WPCGPT_PLUGIN_DIR . 'includes/Services/FlowFileService.php';

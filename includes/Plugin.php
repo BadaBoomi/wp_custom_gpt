@@ -16,6 +16,7 @@ use WpCustomGpt\Services\FlowFileService;
 use WpCustomGpt\Services\FlowRuntimeService;
 use WpCustomGpt\Services\OpenAiService;
 use WpCustomGpt\Services\SettingsService;
+use WpCustomGpt\Services\VolumeLimitService;
 
 class Plugin
 {
@@ -50,7 +51,9 @@ class Plugin
     public function registerRestRoutes(): void
     {
         $settingsService = new SettingsService();
+        $volumeLimitService = new VolumeLimitService();
         $openAiService = new OpenAiService($settingsService);
+        $openAiService->setVolumeLimitService($volumeLimitService);
         $roomRepository = new RoomRepository();
         $chatRepository = new ChatRepository();
         $flowCodeRepository = new FlowCodeRepository();
@@ -59,9 +62,9 @@ class Plugin
         $flowFileService = new FlowFileService($flowFileRepository);
         $flowRuntimeService = new FlowRuntimeService($flowCodeRepository, $flowFileService);
 
-        $settingsController = new SettingsController($settingsService);
+        $settingsController = new SettingsController($settingsService, $volumeLimitService);
         $roomsController = new RoomsController($roomRepository);
-        $chatsController = new ChatsController($chatRepository, $roomRepository, $openAiService, $flowSessionRepository, $flowRuntimeService, $settingsService);
+        $chatsController = new ChatsController($chatRepository, $roomRepository, $openAiService, $flowSessionRepository, $flowRuntimeService, $settingsService, $volumeLimitService);
         $flowCodeController = new FlowCodeController($flowRuntimeService, $flowFileService);
 
         $settingsController->registerRoutes();
@@ -185,6 +188,15 @@ class Plugin
             'dashicons-editor-code',
             65
         );
+
+        add_submenu_page(
+            'wpcgpt-flows',
+            'Volume Management',
+            'Volume Management',
+            'manage_options',
+            'wpcgpt-volume',
+            array($this, 'renderVolumeAdminPage')
+        );
     }
 
     public function registerAdminAssets(string $hookSuffix): void
@@ -240,6 +252,58 @@ class Plugin
         echo '    <pre id="wpcgpt-flow-files-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <pre id="wpcgpt-flow-list-output" style="background:#fff;border:1px solid #ccd0d4;padding:10px;max-height:240px;overflow:auto;"></pre>';
         echo '    <p id="wpcgpt-flow-status" aria-live="polite"></p>';
+        echo '  </div>';
+        echo '</div>';
+    }
+
+    public function renderVolumeAdminPage(): void
+    {
+        if (!current_user_can('manage_options')) {
+            echo '<div class="wrap"><p>Sie haben keine Berechtigung, Volumen zu verwalten.</p></div>';
+            return;
+        }
+
+        $volumeService = new VolumeLimitService();
+        $roles = $volumeService->getAvailableRoles();
+        $quotaRows = $volumeService->getRoleQuotas();
+        $users = $volumeService->getUserOverview();
+        $log = $volumeService->getAuditLog();
+        $month = $volumeService->normalizeMonth();
+
+        echo '<div class="wrap">';
+        echo '  <h1>Volumenverwaltung</h1>';
+        echo '  <h2 class="nav-tab-wrapper">';
+        echo '    <a class="nav-tab nav-tab-active" href="#volumes">Volumenkonfiguration</a>';
+        echo '    <a class="nav-tab" href="#users">Benutzerverwaltung</a>';
+        echo '    <a class="nav-tab" href="#log">Konfigurationsprotokoll</a>';
+        echo '  </h2>';
+
+        echo '  <div id="volumes" class="nav-tab-panel" style="padding-top:20px;">';
+        echo '    <table class="widefat striped"><thead><tr><th>Rolle</th><th>Millionen Tokens/Monat</th></tr></thead><tbody>';
+        foreach ($roles as $roleKey => $roleLabel) {
+            $quota = isset($quotaRows[$roleKey]) ? (int) $quotaRows[$roleKey] : 0;
+            echo '<tr><td>' . esc_html($roleLabel) . '</td><td>' . esc_html((string) $quota) . '</td></tr>';
+        }
+        echo '    </tbody></table>';
+        echo '    <p><strong>Aktueller Monat:</strong> ' . esc_html($month) . '</p>';
+        echo '    <p><em>Die REST-Endpunkte <code>/wp-json/wp-custom-gpt/v1/volume/roles</code> und <code>/wp-json/wp-custom-gpt/v1/volume/users/{id}</code> übernehmen die eigentlichen Änderungen.</em></p>';
+        echo '  </div>';
+
+        echo '  <div id="users" class="nav-tab-panel" style="display:none;padding-top:20px;">';
+        echo '    <table class="widefat striped"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Eingang</th><th>Ausgang</th><th>Verbraucht</th><th>Verbleibend</th><th>Status</th><th>Aktion</th></tr></thead><tbody>';
+        foreach ($users as $user) {
+            $status = !empty($user['blocked']) ? 'Gesperrt' : 'Aktiv';
+            echo '<tr><td>' . esc_html((string) ($user['display_name'] ?: $user['user_login'])) . '</td><td>' . esc_html((string) ($user['assigned_role'] ?: '-')) . '</td><td>' . esc_html((string) $user['input_tokens']) . '</td><td>' . esc_html((string) $user['output_tokens']) . '</td><td>' . esc_html((string) $user['used_tokens']) . '</td><td>' . esc_html((string) $user['remaining_tokens']) . '</td><td>' . esc_html($status) . '</td><td><button type="button" class="button" disabled>Bearbeiten</button></td></tr>';
+        }
+        echo '    </tbody></table>';
+        echo '  </div>';
+
+        echo '  <div id="log" class="nav-tab-panel" style="display:none;padding-top:20px;">';
+        echo '    <table class="widefat striped"><thead><tr><th>Zeit</th><th>Aktion</th><th>Benutzer</th><th>Rolle</th><th>Alt</th><th>Neu</th></tr></thead><tbody>';
+        foreach ($log as $entry) {
+            echo '<tr><td>' . esc_html((string) ($entry['created_at'] ?? '')) . '</td><td>' . esc_html((string) ($entry['event_type'] ?? '')) . '</td><td>' . esc_html((string) ($entry['user_id'] ?: '-')) . '</td><td>' . esc_html((string) ($entry['role_name'] ?: '-')) . '</td><td>' . esc_html((string) ($entry['old_value'] ?? '')) . '</td><td>' . esc_html((string) ($entry['new_value'] ?? '')) . '</td></tr>';
+        }
+        echo '    </tbody></table>';
         echo '  </div>';
         echo '</div>';
     }
