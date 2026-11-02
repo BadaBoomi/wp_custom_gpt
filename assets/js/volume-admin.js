@@ -15,7 +15,7 @@
 
         panels.forEach(function (panel) {
             const shouldShow = panel.id === targetId;
-            panel.style.display = shouldShow ? "" : "none";
+            panel.style.display = shouldShow ? "block" : "none";
         });
     }
 
@@ -60,6 +60,30 @@
 
         activateTab(activeHash);
     }
+
+    document.querySelectorAll(".js-volume-role-edit").forEach(function (button) {
+        button.addEventListener("click", function () {
+            const row = button.closest("tr");
+            const input = row ? row.querySelector("input[data-role-quota]") : null;
+            const role = button.dataset.role;
+
+            if (!input || !role) {
+                return;
+            }
+
+            const value = Number(input.value);
+            request("/volume/roles", "POST", {
+                role: role,
+                monthly_tokens_millions: Number.isFinite(value) ? value : 0,
+            })
+                .then(function () {
+                    window.location.reload();
+                })
+                .catch(function (error) {
+                    window.alert(error.message || "Speichern fehlgeschlagen.");
+                });
+        });
+    });
 
     document.querySelectorAll(".js-volume-user-edit").forEach(function (button) {
         button.disabled = false;

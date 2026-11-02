@@ -300,11 +300,11 @@ class Plugin
         echo '    <a class="nav-tab" href="#log">Konfigurationsprotokoll</a>';
         echo '  </h2>';
 
-        echo '  <div id="volumes" class="nav-tab-panel" style="padding-top:20px;">';
-        echo '    <table class="widefat striped"><thead><tr><th>Rolle</th><th>Millionen Tokens/Monat</th></tr></thead><tbody>';
+        echo '  <div id="volumes" class="nav-tab-panel" style="display:block;padding-top:20px;">';
+        echo '    <table class="widefat striped"><thead><tr><th>Rolle</th><th>Millionen Tokens/Monat</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($roles as $roleKey => $roleLabel) {
             $quota = isset($quotaRows[$roleKey]) ? (int) $quotaRows[$roleKey] : 0;
-            echo '<tr><td>' . esc_html($roleLabel) . '</td><td>' . esc_html((string) $quota) . '</td></tr>';
+            echo '<tr><td>' . esc_html($roleLabel) . '</td><td><input type="number" min="0" step="1" value="' . esc_attr((string) $quota) . '" data-role-quota="' . esc_attr($roleKey) . '" /></td><td><button type="button" class="button js-volume-role-edit" data-role="' . esc_attr($roleKey) . '">Bearbeiten</button></td></tr>';
         }
         echo '    </tbody></table>';
         echo '    <p><strong>Aktueller Monat:</strong> ' . esc_html($month) . '</p>';
