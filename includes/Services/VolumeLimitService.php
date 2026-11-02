@@ -108,6 +108,61 @@ class VolumeLimitService
             return false;
         }
 
+        $user = get_userdata($userId);
+        $rolesToKeep = array();
+        if ($user && !empty($user->roles) && is_array($user->roles)) {
+            foreach ($user->roles as $existingRole) {
+                $existingRole = sanitize_key((string) $existingRole);
+                if ($existingRole === '') {
+                    continue;
+                }
+
+                if ($existingRole === $roleName) {
+                    $rolesToKeep[] = $existingRole;
+                    continue;
+                }
+
+                if ($this->getRoleQuota($existingRole) > 0) {
+                    continue;
+                }
+
+                $rolesToKeep[] = $existingRole;
+            }
+        }
+
+        if (!in_array($roleName, $rolesToKeep, true)) {
+            $rolesToKeep[] = $roleName;
+        }
+
+        $wpUser = $user instanceof \WP_User ? $user : new \WP_User($userId);
+        $allCurrentRoles = array_values(array_unique(array_map(static function ($existingRole): string {
+            return sanitize_key((string) $existingRole);
+        }, $wpUser->roles ?? array())));
+        foreach ($allCurrentRoles as $existingRole) {
+            if ($existingRole === '' || $existingRole === $roleName) {
+                continue;
+            }
+
+            if ($this->getRoleQuota($existingRole) > 0) {
+                $wpUser->remove_role($existingRole);
+            }
+        }
+
+        foreach ($rolesToKeep as $roleKey) {
+            if ($roleKey !== $roleName && $this->getRoleQuota($roleKey) > 0) {
+                $wpUser->remove_role($roleKey);
+                continue;
+            }
+
+            if ($roleKey === $roleName && !in_array($roleKey, $wpUser->roles ?? array(), true)) {
+                $wpUser->add_role($roleKey);
+            }
+        }
+
+        if (!in_array($roleName, $wpUser->roles ?? array(), true)) {
+            $wpUser->add_role($roleName);
+        }
+
         global $wpdb;
         $table = $wpdb->prefix . 'wpcgpt_volume_user_roles';
         $oldRole = $this->getAssignedUserRole($userId);
@@ -204,6 +259,33 @@ class VolumeLimitService
     public function getRoleQuotaTokensForUser(int $userId): int
     {
         return $this->getRoleQuotaTokensForRole($this->getAssignedUserRole($userId));
+    }
+
+    public function getUserRolesWithQuota(int $userId): array
+    {
+        $userId = max(0, (int) $userId);
+        if ($userId <= 0) {
+            return array();
+        }
+
+        $user = get_userdata($userId);
+        if (!$user || empty($user->roles) || !is_array($user->roles)) {
+            return array();
+        }
+
+        $roles = array();
+        foreach ($user->roles as $roleKey) {
+            $roleKey = sanitize_key((string) $roleKey);
+            if ($roleKey === '') {
+                continue;
+            }
+
+            if ($this->getRoleQuota($roleKey) > 0) {
+                $roles[] = $roleKey;
+            }
+        }
+
+        return array_values(array_unique($roles));
     }
 
     public function getMonthlyUsage(int $userId, ?string $month = null): array

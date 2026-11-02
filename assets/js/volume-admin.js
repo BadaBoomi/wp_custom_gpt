@@ -130,19 +130,42 @@
     document.querySelectorAll(".js-volume-user-edit").forEach(function (button) {
         button.disabled = false;
         button.addEventListener("click", function () {
-            const row = button.closest("tr");
-            if (!row) {
-                return;
-            }
-
             const userId = button.dataset.userId;
-            const roleSelect = row.querySelector("select[data-user-role]");
-            if (!userId || !roleSelect) {
+            const assignedRole = button.dataset.userRole || "";
+            if (!userId) {
                 return;
             }
 
-            const role = roleSelect.value;
-            request("/volume/users/" + encodeURIComponent(userId), "POST", { role: role })
+            const availableRoles = Array.from(document.querySelectorAll("[data-role]"));
+            const roleOptions = availableRoles
+                .filter(function (row) {
+                    const role = row.dataset.role || "";
+                    return role && row.dataset.roleQuota !== "0";
+                })
+                .map(function (row) {
+                    const role = row.dataset.role || "";
+                    const label = row.dataset.roleLabel || role;
+                    const selected = role === assignedRole ? " selected" : "";
+                    return '<option value="' + role + '"' + selected + '>' + label + '</option>';
+                })
+                .join("");
+
+            const prompt = window.prompt(
+                "Wählen Sie genau eine Rolle mit Volumeninformationen für den Benutzer:",
+                assignedRole || ""
+            );
+
+            if (prompt === null) {
+                return;
+            }
+
+            const chosenRole = prompt.trim();
+            if (!chosenRole || !roleOptions.includes('value="' + chosenRole + '"')) {
+                window.alert("Bitte wählen Sie eine gültige Rolle mit Volumeninformationen aus.");
+                return;
+            }
+
+            request("/volume/users/" + encodeURIComponent(userId), "POST", { role: chosenRole })
                 .then(function () {
                     window.location.reload();
                 })

@@ -327,15 +327,35 @@ class Plugin
         foreach ($users as $user) {
             $status = !empty($user['blocked']) ? 'Gesperrt' : 'Aktiv';
             $userId = (int) ($user['user_id'] ?? 0);
-            $assignedRole = (string) ($user['assigned_role'] ?? '');
-            $roleOptions = '';
-            foreach ($roles as $roleKey => $roleLabel) {
-                $selected = $roleKey === $assignedRole ? ' selected' : '';
-                $roleOptions .= '<option value="' . esc_attr($roleKey) . '"' . $selected . '>' . esc_html((string) $roleLabel) . '</option>';
+            $userRecord = get_userdata($userId);
+            $userRoleKeys = is_array($userRecord->roles ?? null) ? array_values(array_filter(array_map(static function ($roleKey): string {
+                $sanitized = sanitize_key((string) $roleKey);
+                return $sanitized === '' ? '' : $sanitized;
+            }, (array) ($userRecord->roles ?? array())))) : array();
+            $displayRoles = array_values(array_unique(array_filter($userRoleKeys, static function (string $roleKey): bool {
+                return $roleKey !== '' && $GLOBALS['wp_roles'] instanceof \WP_Roles && isset($GLOBALS['wp_roles']->roles[$roleKey]) && $GLOBALS['wp_roles']->roles[$roleKey]['name'] !== '' && $GLOBALS['wp_roles']->roles[$roleKey]['name'] !== null;
+            })));
+            $quotaRoles = array();
+            foreach ($displayRoles as $roleKey) {
+                if ($volumeService->getRoleQuota($roleKey) > 0) {
+                    $quotaRoles[] = $roleKey;
+                }
             }
-            echo '<tr><td>' . esc_html((string) ($user['display_name'] ?: $user['user_login'])) . '</td>';
-            echo '<td><select data-user-role="' . esc_attr((string) $userId) . '" aria-label="Rolle fuer ' . esc_attr((string) ($user['display_name'] ?: $user['user_login'])) . '">' . $roleOptions . '</select></td>';
-            echo '<td>' . esc_html((string) $user['input_tokens']) . '</td><td>' . esc_html((string) $user['output_tokens']) . '</td><td>' . esc_html((string) $user['used_tokens']) . '</td><td>' . esc_html((string) $user['remaining_tokens']) . '</td><td>' . esc_html($status) . '</td><td><button type="button" class="button js-volume-user-edit" data-user-id="' . esc_attr((string) $userId) . '" disabled>Bearbeiten</button></td></tr>';
+            $warning = count($quotaRoles) > 1;
+            $roleText = '';
+            if (empty($quotaRoles)) {
+                $roleText = '-';
+            } else {
+                $roleText = implode(', ', array_map(static function (string $roleKey) use ($roles): string {
+                    return (string) ($roles[$roleKey] ?? ucfirst(str_replace(array('-', '_'), ' ', $roleKey)));
+                }, $quotaRoles));
+            }
+            if ($warning) {
+                $roleText .= ' <span title="Mehrere Rollen mit Volumeninformationen vorhanden" style="color:#d63638; font-weight:700;">⚠</span>';
+            }
+            echo '<tr data-user-roles="' . esc_attr(implode(',', $quotaRoles)) . '" data-user-role="' . esc_attr((string) ($user['assigned_role'] ?? '')) . '"><td>' . esc_html((string) ($user['display_name'] ?: $user['user_login'])) . '</td>';
+            echo '<td>' . $roleText . '</td>';
+            echo '<td>' . esc_html((string) $user['input_tokens']) . '</td><td>' . esc_html((string) $user['output_tokens']) . '</td><td>' . esc_html((string) $user['used_tokens']) . '</td><td>' . esc_html((string) $user['remaining_tokens']) . '</td><td>' . esc_html($status) . '</td><td><button type="button" class="button js-volume-user-edit" data-user-id="' . esc_attr((string) $userId) . '" data-user-role="' . esc_attr((string) ($user['assigned_role'] ?? '')) . '">Bearbeiten</button></td></tr>';
         }
         echo '    </tbody></table>';
         echo '  </div>';
