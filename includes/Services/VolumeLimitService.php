@@ -79,7 +79,7 @@ class VolumeLimitService
             return false;
         }
 
-        $eventType = ($oldValue > 0 || $this->getRoleQuota($roleName) > 0) ? 'role_volume_changed' : 'role_volume_added';
+        $eventType = ($oldValue > 0) ? 'role_volume_changed' : 'role_volume_added';
         $this->addAuditLog($eventType, 0, $roleName, (string) $oldValue, (string) $monthlyTokensMillions, null);
 
         return true;
