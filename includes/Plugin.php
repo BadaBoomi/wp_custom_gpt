@@ -181,8 +181,8 @@ class Plugin
     public function registerAdminPages(): void
     {
         add_menu_page(
-            'WP Custom GPT Flows',
-            'Custom GPT Flows',
+            'WP Custom GPT',
+            'Custom GPT',
             'manage_options',
             'wpcgpt-flows',
             array($this, 'renderFlowsAdminPage'),
