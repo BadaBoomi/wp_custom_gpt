@@ -360,12 +360,12 @@ class VolumeLimitService
     {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcgpt_volume_log';
-        $monthKey = $this->normalizeMonth($month);
+        $rawMonth = trim((string) ($month ?? ''));
         $query = 'SELECT id, event_type, user_id, role_name, month, old_value, new_value, created_at FROM ' . $table;
         $params = array();
-        if ($monthKey !== '') {
+        if ($rawMonth !== '') {
             $query .= ' WHERE month = %s';
-            $params[] = $monthKey;
+            $params[] = $this->normalizeMonth($rawMonth);
         }
         $query .= ' ORDER BY created_at DESC LIMIT ' . max(1, min(500, (int) $limit));
 
