@@ -202,11 +202,9 @@ class Plugin
 
     public function registerAdminAssets(string $hookSuffix): void
     {
-        $isFlowsAdminPage = $hookSuffix === 'toplevel_page_wpcgpt-flows';
-        $isVolumeAdminPage = in_array($hookSuffix, array(
-            'toplevel_page_wpcgpt-volume',
-            'wpcgpt-flows_page_wpcgpt-volume',
-        ), true);
+        $hookSuffix = (string) $hookSuffix;
+        $isFlowsAdminPage = strpos($hookSuffix, 'wpcgpt-flows') !== false;
+        $isVolumeAdminPage = strpos($hookSuffix, 'wpcgpt-volume') !== false;
 
         if ($isFlowsAdminPage) {
             wp_register_script(
