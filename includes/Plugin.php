@@ -304,11 +304,24 @@ class Plugin
         echo '    <table class="widefat striped"><thead><tr><th>Rolle</th><th>Millionen Tokens/Monat</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($roles as $roleKey => $roleLabel) {
             $quota = isset($quotaRows[$roleKey]) ? (int) $quotaRows[$roleKey] : 0;
-            echo '<tr><td>' . esc_html($roleLabel) . '</td><td><input type="number" min="0" step="1" value="' . esc_attr((string) $quota) . '" data-role-quota="' . esc_attr($roleKey) . '" /></td><td><button type="button" class="button js-volume-role-edit" data-role="' . esc_attr($roleKey) . '">Bearbeiten</button></td></tr>';
+            echo '<tr data-role="' . esc_attr($roleKey) . '" data-role-label="' . esc_attr($roleLabel) . '" data-role-quota="' . esc_attr((string) $quota) . '"><td>' . esc_html($roleLabel) . '</td><td>' . esc_html((string) $quota) . '</td><td><button type="button" class="button js-volume-role-edit" data-role="' . esc_attr($roleKey) . '">Bearbeiten</button></td></tr>';
         }
         echo '    </tbody></table>';
         echo '    <p><strong>Aktueller Monat:</strong> ' . esc_html($month) . '</p>';
         echo '    <p><em>Die REST-Endpunkte <code>/wp-json/wp-custom-gpt/v1/volume/roles</code> und <code>/wp-json/wp-custom-gpt/v1/volume/users/{id}</code> übernehmen die eigentlichen Änderungen.</em></p>';
+        echo '  </div>';
+
+        echo '  <div id="wpcgpt-volume-role-modal" class="wrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">';
+        echo '    <div style="background:#fff;max-width:420px;width:90%;padding:20px;border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,0.2);">';
+        echo '      <h3 style="margin-top:0;">Rollen-Limit bearbeiten</h3>';
+        echo '      <p id="wpcgpt-volume-role-modal-role" style="margin-top:0;"></p>';
+        echo '      <p><label for="wpcgpt-volume-role-modal-input"><strong>Millionen Tokens/Monat</strong></label><br />';
+        echo '      <input id="wpcgpt-volume-role-modal-input" type="number" min="0" step="1" value="0" style="width:100%;" /></p>';
+        echo '      <p style="margin-bottom:0;text-align:right;">';
+        echo '        <button type="button" class="button button-secondary" id="wpcgpt-volume-role-modal-cancel">Abbrechen</button> ';
+        echo '        <button type="button" class="button button-primary" id="wpcgpt-volume-role-modal-save">Speichern</button>';
+        echo '      </p>';
+        echo '    </div>';
         echo '  </div>';
 
         echo '  <div id="users" class="nav-tab-panel" style="display:none;padding-top:20px;">';

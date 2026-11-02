@@ -5,6 +5,12 @@
 
     const tabs = Array.from(document.querySelectorAll(".nav-tab"));
     const panels = Array.from(document.querySelectorAll(".nav-tab-panel"));
+    const modal = document.getElementById("wpcgpt-volume-role-modal");
+    const modalRoleLabel = document.getElementById("wpcgpt-volume-role-modal-role");
+    const modalInput = document.getElementById("wpcgpt-volume-role-modal-input");
+    const modalCancelButton = document.getElementById("wpcgpt-volume-role-modal-cancel");
+    const modalSaveButton = document.getElementById("wpcgpt-volume-role-modal-save");
+    let activeRoleEdit = null;
 
     function activateTab(targetId) {
         tabs.forEach(function (tab) {
@@ -61,29 +67,65 @@
         activateTab(activeHash);
     }
 
+    function openRoleModal(row) {
+        if (!modal || !modalRoleLabel || !modalInput) {
+            return;
+        }
+
+        const role = row && row.dataset.role ? row.dataset.role : "";
+        const roleLabel = row && row.dataset.roleLabel ? row.dataset.roleLabel : role;
+        const quota = row && row.dataset.roleQuota ? row.dataset.roleQuota : "0";
+
+        activeRoleEdit = role;
+        modalRoleLabel.textContent = roleLabel + " (" + role + ")";
+        modalInput.value = quota;
+        modal.style.display = "flex";
+    }
+
+    function closeRoleModal() {
+        if (!modal) {
+            return;
+        }
+
+        activeRoleEdit = null;
+        modal.style.display = "none";
+    }
+
     document.querySelectorAll(".js-volume-role-edit").forEach(function (button) {
         button.addEventListener("click", function () {
             const row = button.closest("tr");
-            const input = row ? row.querySelector("input[data-role-quota]") : null;
-            const role = button.dataset.role;
-
-            if (!input || !role) {
+            if (!row) {
                 return;
             }
 
-            const value = Number(input.value);
+            openRoleModal(row);
+        });
+    });
+
+    if (modalCancelButton) {
+        modalCancelButton.addEventListener("click", closeRoleModal);
+    }
+
+    if (modalSaveButton) {
+        modalSaveButton.addEventListener("click", function () {
+            if (!activeRoleEdit) {
+                return;
+            }
+
+            const value = Number(modalInput.value);
             request("/volume/roles", "POST", {
-                role: role,
+                role: activeRoleEdit,
                 monthly_tokens_millions: Number.isFinite(value) ? value : 0,
             })
                 .then(function () {
+                    closeRoleModal();
                     window.location.reload();
                 })
                 .catch(function (error) {
                     window.alert(error.message || "Speichern fehlgeschlagen.");
                 });
         });
-    });
+    }
 
     document.querySelectorAll(".js-volume-user-edit").forEach(function (button) {
         button.disabled = false;
