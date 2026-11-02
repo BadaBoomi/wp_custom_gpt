@@ -322,6 +322,19 @@ class Plugin
         echo '    </div>';
         echo '  </div>';
 
+        echo '  <div id="wpcgpt-volume-user-role-modal" class="wrap" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">';
+        echo '    <div style="background:#fff;max-width:420px;width:90%;padding:20px;border-radius:6px;box-shadow:0 10px 26px rgba(0,0,0,0.2);">';
+        echo '      <h3 style="margin-top:0;">Benutzerrolle bearbeiten</h3>';
+        echo '      <p id="wpcgpt-volume-user-role-modal-user" style="margin-top:0;"></p>';
+        echo '      <p><label for="wpcgpt-volume-user-role-modal-select"><strong>Rolle mit Volumeninformationen</strong></label><br />';
+        echo '      <select id="wpcgpt-volume-user-role-modal-select" style="width:100%;"></select></p>';
+        echo '      <p style="margin-bottom:0;text-align:right;">';
+        echo '        <button type="button" class="button button-secondary" id="wpcgpt-volume-user-role-modal-cancel">Abbrechen</button> ';
+        echo '        <button type="button" class="button button-primary" id="wpcgpt-volume-user-role-modal-save">Speichern</button>';
+        echo '      </p>';
+        echo '    </div>';
+        echo '  </div>';
+
         echo '  <div id="users" class="nav-tab-panel" style="display:none;padding-top:20px;">';
         echo '    <table class="widefat striped"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Eingang</th><th>Ausgang</th><th>Verbraucht</th><th>Verbleibend</th><th>Status</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($users as $user) {

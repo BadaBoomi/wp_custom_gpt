@@ -10,7 +10,13 @@
     const modalInput = document.getElementById("wpcgpt-volume-role-modal-input");
     const modalCancelButton = document.getElementById("wpcgpt-volume-role-modal-cancel");
     const modalSaveButton = document.getElementById("wpcgpt-volume-role-modal-save");
+    const userRoleModal = document.getElementById("wpcgpt-volume-user-role-modal");
+    const userRoleModalUser = document.getElementById("wpcgpt-volume-user-role-modal-user");
+    const userRoleModalSelect = document.getElementById("wpcgpt-volume-user-role-modal-select");
+    const userRoleModalCancelButton = document.getElementById("wpcgpt-volume-user-role-modal-cancel");
+    const userRoleModalSaveButton = document.getElementById("wpcgpt-volume-user-role-modal-save");
     let activeRoleEdit = null;
+    let activeUserRoleEdit = null;
 
     function activateTab(targetId) {
         tabs.forEach(function (tab) {
@@ -91,6 +97,27 @@
         modal.style.display = "none";
     }
 
+    function openUserRoleModal(userId, userLabel, options, selectedRole) {
+        if (!userRoleModal || !userRoleModalUser || !userRoleModalSelect) {
+            return;
+        }
+
+        userRoleModalUser.textContent = userLabel;
+        userRoleModalSelect.innerHTML = options;
+        userRoleModalSelect.value = selectedRole;
+        activeUserRoleEdit = userId;
+        userRoleModal.style.display = "flex";
+    }
+
+    function closeUserRoleModal() {
+        if (!userRoleModal) {
+            return;
+        }
+
+        activeUserRoleEdit = null;
+        userRoleModal.style.display = "none";
+    }
+
     document.querySelectorAll(".js-volume-role-edit").forEach(function (button) {
         button.addEventListener("click", function () {
             const row = button.closest("tr");
@@ -132,6 +159,7 @@
         button.addEventListener("click", function () {
             const userId = button.dataset.userId;
             const assignedRole = button.dataset.userRole || "";
+            const userLabel = button.closest("tr") ? button.closest("tr").children[0].textContent.trim() : "Benutzer";
             if (!userId) {
                 return;
             }
@@ -150,28 +178,39 @@
                 })
                 .join("");
 
-            const prompt = window.prompt(
-                "Wählen Sie genau eine Rolle mit Volumeninformationen für den Benutzer:",
-                assignedRole || ""
-            );
-
-            if (prompt === null) {
+            if (!roleOptions) {
+                window.alert("Es gibt keine Rolle mit Volumeninformationen zum Zuweisen.");
                 return;
             }
 
-            const chosenRole = prompt.trim();
-            if (!chosenRole || !roleOptions.includes('value="' + chosenRole + '"')) {
-                window.alert("Bitte wählen Sie eine gültige Rolle mit Volumeninformationen aus.");
+            openUserRoleModal(userId, userLabel, roleOptions, assignedRole);
+        });
+    });
+
+    if (userRoleModalCancelButton) {
+        userRoleModalCancelButton.addEventListener("click", closeUserRoleModal);
+    }
+
+    if (userRoleModalSaveButton) {
+        userRoleModalSaveButton.addEventListener("click", function () {
+            if (!activeUserRoleEdit || !userRoleModalSelect) {
                 return;
             }
 
-            request("/volume/users/" + encodeURIComponent(userId), "POST", { role: chosenRole })
+            const chosenRole = userRoleModalSelect.value;
+            if (!chosenRole) {
+                window.alert("Bitte wählen Sie eine gültige Rolle aus.");
+                return;
+            }
+
+            request("/volume/users/" + encodeURIComponent(activeUserRoleEdit), "POST", { role: chosenRole })
                 .then(function () {
+                    closeUserRoleModal();
                     window.location.reload();
                 })
                 .catch(function (error) {
                     window.alert(error.message || "Speichern fehlgeschlagen.");
                 });
         });
-    });
+    }
 })();
