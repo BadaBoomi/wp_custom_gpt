@@ -25,6 +25,7 @@ class Plugin
     private const CHAT_SCRIPT_HANDLE = 'wpcgpt-chat-frontend';
     private const SETTINGS_SCRIPT_HANDLE = 'wpcgpt-settings-frontend';
     private const FLOWS_ADMIN_SCRIPT_HANDLE = 'wpcgpt-flows-admin';
+    private const VOLUME_ADMIN_SCRIPT_HANDLE = 'wpcgpt-volume-admin';
     private const CHAT_STYLE_HANDLE = 'wpcgpt-chat-frontend';
     private const COMMON_STYLE_HANDLE = 'wpcgpt-common-frontend';
 
@@ -201,25 +202,46 @@ class Plugin
 
     public function registerAdminAssets(string $hookSuffix): void
     {
-        if ($hookSuffix !== 'toplevel_page_wpcgpt-flows') {
-            return;
+        $isFlowsAdminPage = $hookSuffix === 'toplevel_page_wpcgpt-flows';
+        $isVolumeAdminPage = in_array($hookSuffix, array(
+            'toplevel_page_wpcgpt-volume',
+            'wpcgpt-flows_page_wpcgpt-volume',
+        ), true);
+
+        if ($isFlowsAdminPage) {
+            wp_register_script(
+                self::FLOWS_ADMIN_SCRIPT_HANDLE,
+                WPCGPT_PLUGIN_URL . 'assets/js/flow-admin.js',
+                array(),
+                WPCGPT_PLUGIN_VERSION,
+                true
+            );
+
+            wp_localize_script(self::FLOWS_ADMIN_SCRIPT_HANDLE, 'WPCGPT_FLOW_ADMIN_CONFIG', array(
+                'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+                'nonce' => wp_create_nonce('wp_rest'),
+                'defaultFlowCode' => $this->getDefaultFlowTemplate(),
+            ));
+
+            wp_enqueue_script(self::FLOWS_ADMIN_SCRIPT_HANDLE);
         }
 
-        wp_register_script(
-            self::FLOWS_ADMIN_SCRIPT_HANDLE,
-            WPCGPT_PLUGIN_URL . 'assets/js/flow-admin.js',
-            array(),
-            WPCGPT_PLUGIN_VERSION,
-            true
-        );
+        if ($isVolumeAdminPage) {
+            wp_register_script(
+                self::VOLUME_ADMIN_SCRIPT_HANDLE,
+                WPCGPT_PLUGIN_URL . 'assets/js/volume-admin.js',
+                array(),
+                WPCGPT_PLUGIN_VERSION,
+                true
+            );
 
-        wp_localize_script(self::FLOWS_ADMIN_SCRIPT_HANDLE, 'WPCGPT_FLOW_ADMIN_CONFIG', array(
-            'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
-            'nonce' => wp_create_nonce('wp_rest'),
-            'defaultFlowCode' => $this->getDefaultFlowTemplate(),
-        ));
+            wp_localize_script(self::VOLUME_ADMIN_SCRIPT_HANDLE, 'WPCGPT_VOLUME_ADMIN_CONFIG', array(
+                'restBase' => esc_url_raw(rest_url('wp-custom-gpt/v1')),
+                'nonce' => wp_create_nonce('wp_rest'),
+            ));
 
-        wp_enqueue_script(self::FLOWS_ADMIN_SCRIPT_HANDLE);
+            wp_enqueue_script(self::VOLUME_ADMIN_SCRIPT_HANDLE);
+        }
     }
 
     public function renderFlowsAdminPage(): void
@@ -293,7 +315,16 @@ class Plugin
         echo '    <table class="widefat striped"><thead><tr><th>Benutzer</th><th>Rolle</th><th>Eingang</th><th>Ausgang</th><th>Verbraucht</th><th>Verbleibend</th><th>Status</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($users as $user) {
             $status = !empty($user['blocked']) ? 'Gesperrt' : 'Aktiv';
-            echo '<tr><td>' . esc_html((string) ($user['display_name'] ?: $user['user_login'])) . '</td><td>' . esc_html((string) ($user['assigned_role'] ?: '-')) . '</td><td>' . esc_html((string) $user['input_tokens']) . '</td><td>' . esc_html((string) $user['output_tokens']) . '</td><td>' . esc_html((string) $user['used_tokens']) . '</td><td>' . esc_html((string) $user['remaining_tokens']) . '</td><td>' . esc_html($status) . '</td><td><button type="button" class="button" disabled>Bearbeiten</button></td></tr>';
+            $userId = (int) ($user['user_id'] ?? 0);
+            $assignedRole = (string) ($user['assigned_role'] ?? '');
+            $roleOptions = '';
+            foreach ($roles as $roleKey => $roleLabel) {
+                $selected = $roleKey === $assignedRole ? ' selected' : '';
+                $roleOptions .= '<option value="' . esc_attr($roleKey) . '"' . $selected . '>' . esc_html((string) $roleLabel) . '</option>';
+            }
+            echo '<tr><td>' . esc_html((string) ($user['display_name'] ?: $user['user_login'])) . '</td>';
+            echo '<td><select data-user-role="' . esc_attr((string) $userId) . '" aria-label="Rolle fuer ' . esc_attr((string) ($user['display_name'] ?: $user['user_login'])) . '">' . $roleOptions . '</select></td>';
+            echo '<td>' . esc_html((string) $user['input_tokens']) . '</td><td>' . esc_html((string) $user['output_tokens']) . '</td><td>' . esc_html((string) $user['used_tokens']) . '</td><td>' . esc_html((string) $user['remaining_tokens']) . '</td><td>' . esc_html($status) . '</td><td><button type="button" class="button js-volume-user-edit" data-user-id="' . esc_attr((string) $userId) . '" disabled>Bearbeiten</button></td></tr>';
         }
         echo '    </tbody></table>';
         echo '  </div>';
