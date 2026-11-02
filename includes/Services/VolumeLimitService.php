@@ -222,7 +222,7 @@ class VolumeLimitService
 
         global $wpdb;
         $table = $wpdb->prefix . 'wpcgpt_volume_usage';
-        $row = $wpdb->get_row('SELECT input_tokens, output_tokens FROM ' . $table . ' WHERE user_id = ' . (int) $userId . ' AND month = \'' . esc_sql($monthKey) . '\' LIMIT 1', ARRAY_A);
+        $row = $wpdb->get_row($wpdb->prepare('SELECT input_tokens, output_tokens FROM ' . $table . ' WHERE user_id = %d AND month = %s LIMIT 1', $userId, $monthKey), ARRAY_A);
 
         if (!is_array($row)) {
             return array(
