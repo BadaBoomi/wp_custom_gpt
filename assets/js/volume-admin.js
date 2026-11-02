@@ -168,7 +168,8 @@
             const roleOptions = availableRoles
                 .filter(function (row) {
                     const role = row.dataset.role || "";
-                    return role && row.dataset.roleQuota !== "0";
+                    const quota = Number(row.dataset.roleQuota || "0");
+                    return role && Number.isFinite(quota) && quota > 0;
                 })
                 .map(function (row) {
                     const role = row.dataset.role || "";
@@ -177,7 +178,6 @@
                     return '<option value="' + role + '"' + selected + '>' + label + '</option>';
                 })
                 .join("");
-
             if (!roleOptions) {
                 window.alert("Es gibt keine Rolle mit Volumeninformationen zum Zuweisen.");
                 return;
