@@ -62,11 +62,18 @@ class ChatsController
                 'methods' => 'GET',
                 'callback' => array($this, 'getChat'),
                 'permission_callback' => array($this, 'isLoggedIn'),
-            ),            array(
+            ),
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'renameChat'),
+                'permission_callback' => array($this, 'isLoggedIn'),
+            ),
+            array(
                 'methods' => 'DELETE',
                 'callback' => array($this, 'deleteChat'),
                 'permission_callback' => array($this, 'isLoggedIn'),
-            ),        ));
+            ),
+        ));
 
         register_rest_route(self::NAMESPACE, '/chats/(?P<chatId>\\d+)/messages', array(
             array(
@@ -282,6 +289,25 @@ class ChatsController
         }
 
         return rest_ensure_response($chat);
+    }
+
+    public function renameChat(WP_REST_Request $request)
+    {
+        $chatId = (int) $request->get_param('chatId');
+        $payload = $request->get_json_params();
+        $title = is_array($payload) ? (string) ($payload['title'] ?? '') : '';
+
+        if (trim($title) === '') {
+            return new WP_Error('invalid_title', 'Chatname ist erforderlich.', array('status' => 400));
+        }
+
+        $updated = $this->chatRepository->rename($chatId, (int) get_current_user_id(), $title);
+
+        if (!$updated) {
+            return new WP_Error('chat_not_found', 'Chat nicht gefunden.', array('status' => 404));
+        }
+
+        return rest_ensure_response($updated);
     }
 
     public function deleteChat(WP_REST_Request $request)

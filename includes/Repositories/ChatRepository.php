@@ -190,6 +190,29 @@ class ChatRepository
         return (int) $this->wpdb->get_var($sql);
     }
 
+    public function rename(int $chatId, int $userId, string $title): ?array
+    {
+        $updated = $this->wpdb->update(
+            $this->chatsTable,
+            array(
+                'title' => sanitize_text_field($title),
+                'updated_at' => current_time('mysql', true),
+            ),
+            array(
+                'id' => $chatId,
+                'user_id' => $userId,
+            ),
+            array('%s', '%s'),
+            array('%d', '%d')
+        );
+
+        if ($updated === false) {
+            return null;
+        }
+
+        return $this->findChatForUser($chatId, $userId);
+    }
+
     public function delete(int $chatId, int $userId): bool
     {
         if (!$this->chatExistsForUser($chatId, $userId)) {

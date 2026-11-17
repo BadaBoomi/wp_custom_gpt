@@ -172,6 +172,36 @@
             });
             actions.appendChild(deleteBtn);
 
+            var renameBtn = document.createElement('button');
+            renameBtn.type = 'button';
+            renameBtn.textContent = 'Umbenennen';
+            renameBtn.addEventListener('click', function () {
+                var currentName = String((room && room.name) || '').trim();
+                var newName = window.prompt('Neuen Raumnamen eingeben:', currentName);
+                if (newName === null) {
+                    return;
+                }
+
+                newName = (newName || '').trim();
+                if (!newName) {
+                    setStatus('Bitte einen Raumnamen eingeben.', true);
+                    return;
+                }
+
+                request('/rooms/' + room.id, {
+                    method: 'POST',
+                    body: JSON.stringify({ name: newName }),
+                })
+                    .then(function () {
+                        setStatus('Raum umbenannt.', false);
+                        loadRooms();
+                    })
+                    .catch(function (error) {
+                        setStatus(error.message, true);
+                    });
+            });
+            actions.appendChild(renameBtn);
+
             var enterBtn = document.createElement('button');
             enterBtn.type = 'button';
             enterBtn.textContent = 'Öffnen';

@@ -261,6 +261,36 @@
             });
             actions.appendChild(continueBtn);
 
+            var renameBtn = document.createElement('button');
+            renameBtn.type = 'button';
+            renameBtn.textContent = 'Umbenennen';
+            renameBtn.addEventListener('click', function () {
+                var currentName = String((chat && chat.title) || '').trim();
+                var newName = window.prompt('Neuen Chatnamen eingeben:', currentName);
+                if (newName === null) {
+                    return;
+                }
+
+                newName = (newName || '').trim();
+                if (!newName) {
+                    setStatus('Bitte einen Chatnamen eingeben.', true);
+                    return;
+                }
+
+                request('/chats/' + chat.id, {
+                    method: 'POST',
+                    body: JSON.stringify({ title: newName }),
+                })
+                    .then(function () {
+                        setStatus('Chat umbenannt.', false);
+                        loadChats();
+                    })
+                    .catch(function (error) {
+                        setStatus(error.message, true);
+                    });
+            });
+            actions.appendChild(renameBtn);
+
             var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
             deleteBtn.textContent = 'Löschen';
