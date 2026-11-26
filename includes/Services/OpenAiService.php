@@ -21,7 +21,7 @@ class OpenAiService
         $this->volumeLimitService = $volumeLimitService;
     }
 
-    public function createAssistantReply(array $messages, ?string $promptId = null, array $requestContext = array()): array|WP_Error
+    public function createAssistantReply(array $messages, array $configuration = array(), array $requestContext = array()): array|WP_Error
     {
         $runtime = $this->settingsService->getRuntimeSettings();
         $apiKey = (string) ($runtime['api_key'] ?? '');
@@ -70,12 +70,23 @@ class OpenAiService
             $payload['metadata'] = $metadata;
         }
 
-        $promptId = $promptId !== null ? trim($promptId) : '';
-        if ($promptId !== '') {
-            $payload['prompt'] = array('id' => $promptId);
-        } else {
-            // Fallback model when no prompt is configured.
-            $payload['model'] = 'gpt-4.1-mini';
+        $agentPrompt = trim((string) ($configuration['agent_prompt'] ?? ''));
+        $vectorStoreId = trim((string) ($configuration['vector_store_id'] ?? ''));
+        $model = trim((string) ($configuration['model'] ?? ''));
+
+        if ($agentPrompt !== '') {
+            $payload['instructions'] = $agentPrompt;
+        }
+
+        $payload['model'] = $model !== '' ? $model : 'gpt-4.1-mini';
+
+        if ($vectorStoreId !== '') {
+            $payload['tools'] = array(
+                array(
+                    'type' => 'file_search',
+                    'vector_store_ids' => array($vectorStoreId),
+                ),
+            );
         }
 
         $body = $this->requestResponsesApi($payload);

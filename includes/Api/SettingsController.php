@@ -36,6 +36,14 @@ class SettingsController
             ),
         ));
 
+        register_rest_route(self::NAMESPACE, '/settings/configuration-log', array(
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'getConfigurationLog'),
+                'permission_callback' => array($this, 'canManageSettings'),
+            ),
+        ));
+
         register_rest_route(self::NAMESPACE, '/settings/openai-debug-log', array(
             array(
                 'methods' => 'GET',
@@ -192,6 +200,22 @@ class SettingsController
         }
 
         return $this->settingsService->saveSettings($payload);
+    }
+
+    public function getConfigurationLog(WP_REST_Request $request)
+    {
+        $result = $this->settingsService->getConfigurationAuditLog(array(
+            'user_id' => max(0, (int) $request->get_param('user_id')),
+            'field_name' => sanitize_key((string) $request->get_param('field_name')),
+            'date_from' => trim((string) $request->get_param('date_from')),
+            'date_to' => trim((string) $request->get_param('date_to')),
+            'limit' => max(1, min(500, (int) $request->get_param('limit'))),
+        ));
+
+        return rest_ensure_response(array(
+            'entries' => isset($result['entries']) && is_array($result['entries']) ? $result['entries'] : array(),
+            'users' => isset($result['users']) && is_array($result['users']) ? $result['users'] : array(),
+        ));
     }
 
     public function getOpenAiDebugLog(WP_REST_Request $request)

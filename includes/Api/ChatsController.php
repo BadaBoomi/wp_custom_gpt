@@ -158,10 +158,16 @@ class ChatsController
             'content' => $message,
         );
 
-        $promptId = trim((string) ($entry['promptId'] ?? ''));
+        $agentPrompt = trim((string) ($entry['agentPrompt'] ?? ''));
+        $vectorStoreId = trim((string) ($entry['vectorStoreId'] ?? ''));
+        $model = trim((string) ($entry['model'] ?? ''));
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
-            $promptId !== '' ? $promptId : null,
+            array(
+                'agent_prompt' => $agentPrompt,
+                'vector_store_id' => $vectorStoreId,
+                'model' => $model,
+            ),
             array('user_id' => get_current_user_id())
         );
 
@@ -242,7 +248,9 @@ class ChatsController
         }
 
         $configPrompt = $entry ? (string) ($entry['prompt'] ?? '') : '';
-        $configPromptId = $entry ? (string) ($entry['promptId'] ?? '') : '';
+        $configAgentPrompt = $entry ? (string) ($entry['agentPrompt'] ?? '') : '';
+        $configVectorStoreId = $entry ? (string) ($entry['vectorStoreId'] ?? '') : '';
+        $configModel = $entry ? (string) ($entry['model'] ?? '') : '';
         $configIconUrl = $entry ? esc_url_raw((string) ($entry['iconUrl'] ?? '')) : '';
         $directive = $this->parseRuleFlowDirective($configPrompt);
 
@@ -252,7 +260,9 @@ class ChatsController
             $title,
             $entry ? (string) ($entry['label'] ?? '') : '',
             $directive ? (string) $directive['cleaned_text'] : $configPrompt,
-            $configPromptId,
+            $configAgentPrompt,
+            $configVectorStoreId,
+            $configModel,
             $configIconUrl
         );
 
@@ -441,10 +451,16 @@ class ChatsController
         $openAiRequestContext = $this->buildOpenAiRequestContext($chat, $chatId, $userId);
         $openAiRequestContext['user_id'] = $userId;
         $history = $this->buildOpenAiHistory($chatId, $userId, $message, $openAiRequestContext);
-        $promptId = isset($chat['config_prompt_id']) ? trim((string) $chat['config_prompt_id']) : '';
+        $agentPrompt = isset($chat['config_agent_prompt']) ? trim((string) $chat['config_agent_prompt']) : '';
+        $vectorStoreId = isset($chat['config_vector_store_id']) ? trim((string) $chat['config_vector_store_id']) : '';
+        $model = isset($chat['config_model']) ? trim((string) $chat['config_model']) : '';
         $openAiResult = $this->openAiService->createAssistantReply(
             $history,
-            $promptId !== '' ? $promptId : null,
+            array(
+                'agent_prompt' => $agentPrompt,
+                'vector_store_id' => $vectorStoreId,
+                'model' => $model,
+            ),
             $openAiRequestContext
         );
 

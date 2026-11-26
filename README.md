@@ -18,6 +18,7 @@ WordPress plugin scaffold for porting core functionality from pwa_custom_gpt.
   - `GET /wp-json/wp-custom-gpt/v1/health`
   - `GET /wp-json/wp-custom-gpt/v1/settings` (admin only)
   - `POST /wp-json/wp-custom-gpt/v1/settings` (admin only)
+  - `GET /wp-json/wp-custom-gpt/v1/settings/configuration-log` (admin only)
   - `GET /wp-json/wp-custom-gpt/v1/rooms` (logged-in users)
   - `POST /wp-json/wp-custom-gpt/v1/rooms` (logged-in users)
   - `POST /wp-json/wp-custom-gpt/v1/rooms/{id}` (rename)
@@ -102,7 +103,7 @@ Use shortcode `[wp_custom_gpt_settings]` to manage:
 - API key
 - Transient Mode flag
 - General settings
-- Chat type tab with configuration entries (`ID`, `Zweck`, `Prompt`, `Max per room`, `Attr prereq`, `Attr prov`, `Prompt-ID`, `Icon`)
+- Chat type tab with configuration entries (`ID`, `Zweck`, `Prompt`, `Agent Prompt`, `Max per room`, `Attr prereq`, `Attr prov`, `Vector-Store-ID`, `Modell`, `Icon`)
 - Room attribute tab with ordered room attribute definitions and visibility control
 - Default assistant icon (upload/select from WordPress media library)
 - Appearance tab for fonts/colors used by chat, chat management and room management
@@ -110,10 +111,14 @@ Use shortcode `[wp_custom_gpt_settings]` to manage:
 Important behavior:
 
 - `Prompt` is no longer a generic text prefill. It is the first assistant message shown when a new chat of that configuration is created.
+- `Prompt` is edited via a modal dialog in the settings UI.
+- `Agent Prompt` ist getrennt vom Begruessungs-Prompt und wird als OpenAI-Instruktion (`instructions`) verwendet.
 - `Max per room` restricts how many chats of that type may exist in a single room. Once the limit is reached, the type is no longer offered in the chat creation selector.
 - `Attr prereq` limits creation of a chat type to rooms where all selected attributes already exist and are non-empty.
 - `Attr prov` declares room attributes that this chat type provides. When the chat is deleted, those attributes are removed from the room only if no other remaining chat in the same room still provides them.
 - The order in `Raum-Attribute` is the order used for room attribute display; undocumented attributes are hidden entirely.
+- Configuration changes are audit-logged in DB table `wpcgpt_configuration_log` with user, timestamp, field and previous value.
+- Das Aenderungsprotokoll ist im Tab `Chat-Typen` sichtbar und nach Benutzer, Feld sowie Datumsbereich filterbar.
 
 Storage location is WordPress database (`wp_options`) using these option keys:
 
@@ -201,7 +206,7 @@ Behavior:
 The settings page (`[wp_custom_gpt_settings]`) contains an editable table of configuration entries with the columns:
 
 ```text
-| ID | Zweck | Prompt | Max per room | Attr prereq | Attr prov | Prompt-ID | Icon |
+| ID | Zweck | Prompt | Agent Prompt | Max per room | Attr prereq | Attr prov | Vector-Store-ID | Modell | Icon |
 ```
 
 Rows can be added and removed manually and are saved with the settings form.
@@ -238,9 +243,12 @@ The old read-only markdown textarea view for starters has been removed.
 ### Configuration selection when creating a chat
 
 On the chat management page (`[wp_custom_gpt_chats ...]`) an entry can be selected when creating a new chat. The selected
-entry is stored with the chat (`config_label`, `config_prompt`, `config_prompt_id`, `config_icon_url`) and defines:
+entry is stored with the chat (`config_label`, `config_prompt`, `config_agent_prompt`, `config_vector_store_id`, `config_model`, `config_icon_url`) and defines:
 
-- the `Prompt-ID` used for every OpenAI request of that chat (without one, `gpt-4.1-mini` is used),
+- the `Prompt` value used as initial assistant greeting for new chats of this type,
+- the `Agent Prompt` value used as OpenAI instructions for every request of that chat,
+- the `Vector-Store-ID` used for OpenAI file search tools in every request of that chat,
+- the configured `Modell` for every OpenAI request of that chat (fallback: `gpt-4.1-mini`),
 - the initial assistant greeting, which is inserted as the first assistant message when the chat is created,
 - the assistant icon for this chat (if set on the selected configuration entry),
 - whether a rule-based flow starts: if the prompt contains `[[start_rule_flow:<flow_type>]]`, the flow is started directly at
@@ -254,7 +262,7 @@ replies produce buttons there.
 
 1. Open a page with shortcode `[wp_custom_gpt_settings]` as admin and save at least:
   - API key
-  - (optional) configuration entries with `Prompt-ID`
+  - (optional) configuration entries with `Prompt`, `Agent Prompt`, `Vector-Store-ID` und `Modell`
 2. Open the room page (`[wp_custom_gpt_rooms ...]`) as logged-in user.
 3. Create a room and click Enter.
 4. On chat management page (`[wp_custom_gpt_chats ...]`) create a new chat or continue an existing one.
@@ -280,7 +288,7 @@ Transient Mode behavior:
 - No room relation is required or used.
 - No user/customer relation is required or used for the conversation data.
 - Conversation history is kept only in browser memory for the current page session.
-- The selected configuration controls prompt/prompt-id and optional assistant icon override.
+- The selected configuration controls greeting prompt, agent prompt, vector-store/model and optional assistant icon override.
 
 Notes:
 
@@ -306,8 +314,11 @@ If no inline response buttons are present in the latest assistant message, the c
 
 ### Model selection behavior
 
-When the chat has a Prompt-ID from its selected configuration entry, the plugin sends the request with `prompt.id` and does not force a model.
-This avoids conflicts such as `reasoning.mode is not supported with this model` caused by overriding prompt-defined behavior with an incompatible hardcoded model.
+The plugin always sends the selected configuration values to OpenAI per request:
+
+- `instructions` from configuration `Agent Prompt`
+- `tools.file_search.vector_store_ids[0]` from `Vector-Store-ID` (if provided)
+- `model` from `Modell` (fallback: `gpt-4.1-mini`)
 
 ## Build a loadable WordPress archive
 

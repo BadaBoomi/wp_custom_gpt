@@ -4,6 +4,7 @@ namespace WpCustomGpt\Services;
 
 class SettingsService
 {
+    private const CONFIGURATION_LOG_TABLE_SUFFIX = 'wpcgpt_configuration_log';
     private const OPTION_API_KEY = 'wpcgpt_api_key';
     private const OPTION_STARTERS = 'wpcgpt_starters';
     private const OPTION_OPENAI_DEBUG_ENABLED = 'wpcgpt_openai_debug_enabled';
@@ -93,7 +94,10 @@ class SettingsService
         }
 
         if (array_key_exists('configuration_entries', $payload) && is_array($payload['configuration_entries'])) {
-            $this->saveConfigurationRows($this->normalizeConfigurationEntries($payload['configuration_entries']));
+            $normalizedEntries = $this->normalizeConfigurationEntries($payload['configuration_entries']);
+            $oldEntries = $this->normalizeConfigurationEntries($this->getConfigurationEntries());
+            $this->logConfigurationEntryChanges($oldEntries, $normalizedEntries, (int) get_current_user_id());
+            $this->saveConfigurationRows($normalizedEntries);
         }
 
         if (array_key_exists('room_attributes', $payload) && is_array($payload['room_attributes'])) {
@@ -195,6 +199,92 @@ class SettingsService
 
         $starters = (string) get_option(self::OPTION_STARTERS, '');
         return $this->hydrateConfigurationEntries($this->parseStarterPromptsMarkdown($starters));
+    }
+
+    public function getConfigurationAuditLog(array $filters = array()): array
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . self::CONFIGURATION_LOG_TABLE_SUFFIX;
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+        if ((string) $tableExists !== $table) {
+            return array(
+                'entries' => array(),
+                'users' => array(),
+            );
+        }
+
+        $usersTable = $wpdb->users;
+        $where = array();
+        $params = array();
+
+        $userId = max(0, (int) ($filters['user_id'] ?? 0));
+        if ($userId > 0) {
+            $where[] = 'l.user_id = %d';
+            $params[] = $userId;
+        }
+
+        $fieldName = sanitize_key((string) ($filters['field_name'] ?? ''));
+        if ($fieldName !== '') {
+            $where[] = 'l.field_name = %s';
+            $params[] = $fieldName;
+        }
+
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        if ($dateFrom !== '') {
+            $fromTimestamp = strtotime($dateFrom . ' 00:00:00');
+            if ($fromTimestamp !== false) {
+                $where[] = 'l.changed_at >= %s';
+                $params[] = gmdate('Y-m-d H:i:s', $fromTimestamp);
+            }
+        }
+
+        $dateTo = trim((string) ($filters['date_to'] ?? ''));
+        if ($dateTo !== '') {
+            $toTimestamp = strtotime($dateTo . ' 23:59:59');
+            if ($toTimestamp !== false) {
+                $where[] = 'l.changed_at <= %s';
+                $params[] = gmdate('Y-m-d H:i:s', $toTimestamp);
+            }
+        }
+
+        $limit = max(1, min(500, (int) ($filters['limit'] ?? 200)));
+
+        $query = "SELECT l.id, l.user_id, COALESCE(u.display_name, u.user_login, '') AS user_name, l.config_entry_id, l.field_name, l.old_value, l.changed_at
+            FROM {$table} l
+            LEFT JOIN {$usersTable} u ON u.ID = l.user_id";
+
+        if (!empty($where)) {
+            $query .= ' WHERE ' . implode(' AND ', $where);
+        }
+
+        $query .= ' ORDER BY l.changed_at DESC, l.id DESC LIMIT ' . $limit;
+
+        if (!empty($params)) {
+            $query = $wpdb->prepare($query, $params);
+        }
+
+        $rows = $wpdb->get_results($query, ARRAY_A);
+        if (!is_array($rows)) {
+            $rows = array();
+        }
+
+        $usersQuery = "SELECT DISTINCT l.user_id, COALESCE(u.display_name, u.user_login, '') AS user_name
+            FROM {$table} l
+            LEFT JOIN {$usersTable} u ON u.ID = l.user_id
+            WHERE l.user_id > 0
+            ORDER BY user_name ASC, l.user_id ASC
+            LIMIT 500";
+
+        $users = $wpdb->get_results($usersQuery, ARRAY_A);
+        if (!is_array($users)) {
+            $users = array();
+        }
+
+        return array(
+            'entries' => array_values($rows),
+            'users' => array_values($users),
+        );
     }
 
     /**
@@ -321,7 +411,7 @@ class SettingsService
 
     /**
      * @param array<int, mixed> $entries
-     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int, maxPerRoom: int, attrPrereq: string[], attrProv: string[]}>
+     * @return array<int, array{id: int, label: string, prompt: string, agentPrompt: string, vectorStoreId: string, model: string, iconId: int, maxPerRoom: int, attrPrereq: string[], attrProv: string[]}>
      */
     public function normalizeConfigurationEntries(array $entries): array
     {
@@ -348,7 +438,9 @@ class SettingsService
             $id = max(0, (int) ($entry['id'] ?? 0));
             $label = trim(sanitize_text_field((string) ($entry['label'] ?? '')));
             $prompt = trim((string) ($entry['prompt'] ?? ''));
-            $promptId = trim(sanitize_text_field((string) ($entry['promptId'] ?? '')));
+            $agentPrompt = trim((string) ($entry['agentPrompt'] ?? $entry['agent_prompt'] ?? ''));
+            $vectorStoreId = trim(sanitize_text_field((string) ($entry['vectorStoreId'] ?? $entry['vector_store_id'] ?? '')));
+            $model = trim(sanitize_text_field((string) ($entry['model'] ?? '')));
             $iconId = max(0, (int) ($entry['iconId'] ?? 0));
             $maxPerRoomRaw = $entry['maxPerRoom'] ?? $entry['max_per_room'] ?? 0;
             $maxPerRoom = max(0, (int) $maxPerRoomRaw);
@@ -360,7 +452,7 @@ class SettingsService
                 $id = $maxId;
             }
 
-            if ($label === '' && $prompt === '' && $promptId === '' && $iconId === 0 && $maxPerRoom === 0 && empty($attrPrereq) && empty($attrProv)) {
+            if ($label === '' && $prompt === '' && $agentPrompt === '' && $vectorStoreId === '' && $model === '' && $iconId === 0 && $maxPerRoom === 0 && empty($attrPrereq) && empty($attrProv)) {
                 continue;
             }
 
@@ -368,7 +460,9 @@ class SettingsService
                 'id' => $id,
                 'label' => $label !== '' ? $label : 'Ohne Bezeichnung',
                 'prompt' => $prompt,
-                'promptId' => $promptId,
+                'agentPrompt' => $agentPrompt,
+                'vectorStoreId' => $vectorStoreId,
+                'model' => $model,
                 'iconId' => $iconId,
                 'maxPerRoom' => $maxPerRoom,
                 'attrPrereq' => $attrPrereq,
@@ -384,8 +478,8 @@ class SettingsService
         update_option(self::OPTION_CONFIGURATION_ENTRIES, $rows, false);
 
         // Keep legacy markdown option synchronized for compatibility.
-        $header = '| Zweck | Prompt | Prompt-ID |';
-        $separator = '|---|---|---|';
+        $header = '| Zweck | Prompt | Agent Prompt | Vector-Store-ID | Modell |';
+        $separator = '|---|---|---|---|---|';
         $body = array();
 
         foreach ($rows as $row) {
@@ -395,13 +489,17 @@ class SettingsService
 
             $label = trim((string) ($row['label'] ?? ''));
             $prompt = trim((string) ($row['prompt'] ?? ''));
-            $promptId = trim((string) ($row['promptId'] ?? ''));
+            $agentPrompt = trim((string) ($row['agentPrompt'] ?? ''));
+            $vectorStoreId = trim((string) ($row['vectorStoreId'] ?? ''));
+            $model = trim((string) ($row['model'] ?? ''));
 
             $safeLabel = str_replace('|', '/', $label);
             $safePrompt = str_replace('|', '/', $prompt);
-            $safePromptId = str_replace('|', '/', $promptId);
+            $safeAgentPrompt = str_replace('|', '/', $agentPrompt);
+            $safeVectorStoreId = str_replace('|', '/', $vectorStoreId);
+            $safeModel = str_replace('|', '/', $model);
 
-            $body[] = sprintf('| %s | %s | %s |', $safeLabel, $safePrompt, $safePromptId);
+            $body[] = sprintf('| %s | %s | %s | %s | %s |', $safeLabel, $safePrompt, $safeAgentPrompt, $safeVectorStoreId, $safeModel);
         }
 
         $markdown = implode("\n", array_merge(array($header, $separator), $body));
@@ -437,7 +535,11 @@ class SettingsService
                 'id' => count($entries) + 1,
                 'label' => $label,
                 'prompt' => $prompt,
-                'promptId' => $parts[2] ?? '',
+                'agentPrompt' => isset($parts[4]) ? (string) $parts[2] : '',
+                'vectorStoreId' => isset($parts[4])
+                    ? (string) ($parts[3] ?? '')
+                    : (isset($parts[2]) && strpos((string) $parts[2], 'pmpt_') !== 0 ? (string) $parts[2] : ''),
+                'model' => isset($parts[4]) ? (string) ($parts[4] ?? '') : (string) ($parts[3] ?? ''),
                 'iconId' => 0,
             );
         }
@@ -446,8 +548,8 @@ class SettingsService
     }
 
     /**
-     * @param array<int, array{id?: int, label: string, prompt: string, promptId: string, iconId?: int}> $entries
-     * @return array<int, array{id: int, label: string, prompt: string, promptId: string, iconId: int, iconUrl: string}>
+     * @param array<int, array{id?: int, label: string, prompt: string, agentPrompt: string, vectorStoreId: string, model: string, iconId?: int}> $entries
+     * @return array<int, array{id: int, label: string, prompt: string, agentPrompt: string, vectorStoreId: string, model: string, iconId: int, iconUrl: string}>
      */
     private function hydrateConfigurationEntries(array $entries): array
     {
@@ -463,7 +565,9 @@ class SettingsService
                 'id' => $id,
                 'label' => (string) ($entry['label'] ?? ''),
                 'prompt' => (string) ($entry['prompt'] ?? ''),
-                'promptId' => (string) ($entry['promptId'] ?? ''),
+                'agentPrompt' => (string) ($entry['agentPrompt'] ?? ''),
+                'vectorStoreId' => (string) ($entry['vectorStoreId'] ?? ''),
+                'model' => (string) ($entry['model'] ?? ''),
                 'iconId' => $iconId,
                 'maxPerRoom' => $maxPerRoom,
                 'attrPrereq' => $attrPrereq,
@@ -473,6 +577,99 @@ class SettingsService
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<int, array{id: int, label: string, prompt: string, agentPrompt: string, vectorStoreId: string, model: string, iconId: int, maxPerRoom: int, attrPrereq: string[], attrProv: string[]}> $oldEntries
+     * @param array<int, array{id: int, label: string, prompt: string, agentPrompt: string, vectorStoreId: string, model: string, iconId: int, maxPerRoom: int, attrPrereq: string[], attrProv: string[]}> $newEntries
+     */
+    private function logConfigurationEntryChanges(array $oldEntries, array $newEntries, int $userId): void
+    {
+        global $wpdb;
+
+        $table = $wpdb->prefix . self::CONFIGURATION_LOG_TABLE_SUFFIX;
+        $tableExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+        if ((string) $tableExists !== $table) {
+            return;
+        }
+
+        $oldById = array();
+        foreach ($oldEntries as $entry) {
+            $entryId = max(0, (int) ($entry['id'] ?? 0));
+            if ($entryId > 0) {
+                $oldById[$entryId] = $entry;
+            }
+        }
+
+        $newById = array();
+        foreach ($newEntries as $entry) {
+            $entryId = max(0, (int) ($entry['id'] ?? 0));
+            if ($entryId > 0) {
+                $newById[$entryId] = $entry;
+            }
+        }
+
+        $trackedFields = array('label', 'prompt', 'agentPrompt', 'vectorStoreId', 'model', 'iconId', 'maxPerRoom', 'attrPrereq', 'attrProv');
+
+        foreach ($oldById as $entryId => $oldEntry) {
+            if (!isset($newById[$entryId])) {
+                foreach ($trackedFields as $field) {
+                    $oldValue = array_key_exists($field, $oldEntry) ? $oldEntry[$field] : '';
+                    if ($this->isAuditValueEmpty($oldValue)) {
+                        continue;
+                    }
+                    $this->insertConfigurationAuditLog($table, $userId, $entryId, $field, $oldValue);
+                }
+                continue;
+            }
+
+            $newEntry = $newById[$entryId];
+            foreach ($trackedFields as $field) {
+                $oldValue = array_key_exists($field, $oldEntry) ? $oldEntry[$field] : '';
+                $newValue = array_key_exists($field, $newEntry) ? $newEntry[$field] : '';
+                if ($this->serializeAuditValue($oldValue) === $this->serializeAuditValue($newValue)) {
+                    continue;
+                }
+
+                $this->insertConfigurationAuditLog($table, $userId, $entryId, $field, $oldValue);
+            }
+        }
+    }
+
+    private function isAuditValueEmpty($value): bool
+    {
+        if (is_array($value)) {
+            return empty($value);
+        }
+
+        return trim((string) $value) === '';
+    }
+
+    private function serializeAuditValue($value): string
+    {
+        if (is_array($value)) {
+            $encoded = wp_json_encode(array_values($value));
+            return is_string($encoded) ? $encoded : '';
+        }
+
+        return (string) $value;
+    }
+
+    private function insertConfigurationAuditLog(string $table, int $userId, int $configEntryId, string $fieldName, $oldValue): void
+    {
+        global $wpdb;
+
+        $wpdb->insert(
+            $table,
+            array(
+                'user_id' => max(0, $userId),
+                'config_entry_id' => max(0, $configEntryId),
+                'field_name' => sanitize_key($fieldName),
+                'old_value' => $this->serializeAuditValue($oldValue),
+                'changed_at' => current_time('mysql', true),
+            ),
+            array('%d', '%d', '%s', '%s', '%s')
+        );
     }
 
     private function maskApiKey(string $apiKey): string

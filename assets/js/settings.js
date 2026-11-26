@@ -17,6 +17,12 @@
     var assistantIconPreview = document.getElementById('wpcgpt-assistant-icon-preview');
     var assistantIconUploadBtn = document.getElementById('wpcgpt-assistant-icon-upload');
     var assistantIconRemoveBtn = document.getElementById('wpcgpt-assistant-icon-remove');
+    var configurationLogUserFilterEl = document.getElementById('wpcgpt-configuration-log-filter-user');
+    var configurationLogFieldFilterEl = document.getElementById('wpcgpt-configuration-log-filter-field');
+    var configurationLogDateFromFilterEl = document.getElementById('wpcgpt-configuration-log-filter-date-from');
+    var configurationLogDateToFilterEl = document.getElementById('wpcgpt-configuration-log-filter-date-to');
+    var configurationLogLoadBtn = document.getElementById('wpcgpt-configuration-log-load');
+    var configurationLogRowsEl = document.getElementById('wpcgpt-configuration-log-rows');
     var tabButtons = root.querySelectorAll('.wpcgpt-tab-button');
     var tabPanels = root.querySelectorAll('.wpcgpt-settings-tab-panel');
 
@@ -40,9 +46,89 @@
 
     var CONFIGURATION_FIELDS = [
         { key: 'label', type: 'text', placeholder: 'Zweck' },
-        { key: 'prompt', type: 'textarea', placeholder: 'Prompt / Begruessung' },
         { key: 'maxPerRoom', type: 'number', placeholder: '0', min: '0' },
     ];
+
+    function summarizePrompt(prompt) {
+        var normalized = String(prompt || '').replace(/\s+/g, ' ').trim();
+        if (!normalized) {
+            return 'Kein Prompt gepflegt';
+        }
+        return normalized.length > 120 ? normalized.substring(0, 117) + '...' : normalized;
+    }
+
+    function openPromptModal(titleText, initialPrompt, onSave) {
+        var overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.inset = '0';
+        overlay.style.background = 'rgba(0,0,0,0.5)';
+        overlay.style.zIndex = '9999';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+
+        var modal = document.createElement('div');
+        modal.style.width = 'min(920px, 95vw)';
+        modal.style.maxHeight = '90vh';
+        modal.style.overflow = 'auto';
+        modal.style.background = '#fff';
+        modal.style.borderRadius = '6px';
+        modal.style.boxShadow = '0 10px 26px rgba(0,0,0,0.2)';
+        modal.style.padding = '16px';
+
+        var title = document.createElement('h3');
+        title.textContent = String(titleText || 'Prompt bearbeiten');
+        title.style.marginTop = '0';
+        modal.appendChild(title);
+
+        var textarea = document.createElement('textarea');
+        textarea.rows = 16;
+        textarea.style.width = '100%';
+        textarea.style.boxSizing = 'border-box';
+        textarea.value = String(initialPrompt || '');
+        modal.appendChild(textarea);
+
+        var footer = document.createElement('div');
+        footer.style.display = 'flex';
+        footer.style.justifyContent = 'flex-end';
+        footer.style.gap = '8px';
+        footer.style.marginTop = '12px';
+
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'button button-secondary';
+        cancelBtn.textContent = 'Abbrechen';
+        cancelBtn.addEventListener('click', function () {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        });
+
+        var saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'button button-primary';
+        saveBtn.textContent = 'Uebernehmen';
+        saveBtn.addEventListener('click', function () {
+            onSave(String(textarea.value || ''));
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        });
+
+        footer.appendChild(cancelBtn);
+        footer.appendChild(saveBtn);
+        modal.appendChild(footer);
+        overlay.appendChild(modal);
+
+        overlay.addEventListener('click', function (event) {
+            if (event.target === overlay && overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        });
+
+        document.body.appendChild(overlay);
+        textarea.focus();
+    }
 
     function getRoomAttributeOptions() {
         var attributeNames = [];
@@ -330,20 +416,76 @@
         idCell.textContent = idValue > 0 ? String(idValue) : 'Neu';
         row.appendChild(idCell);
 
+        var promptCell = document.createElement('td');
+        promptCell.style.padding = '4px 6px 4px 0';
+
+        var promptInput = document.createElement('input');
+        promptInput.type = 'hidden';
+        promptInput.setAttribute('data-field', 'prompt');
+        promptInput.value = entry && entry.prompt !== undefined && entry.prompt !== null ? String(entry.prompt) : '';
+
+        var promptSummary = document.createElement('div');
+        promptSummary.style.fontSize = '12px';
+        promptSummary.style.maxWidth = '260px';
+        promptSummary.style.whiteSpace = 'normal';
+        promptSummary.style.wordBreak = 'break-word';
+        promptSummary.textContent = summarizePrompt(promptInput.value);
+
+        var promptEditBtn = document.createElement('button');
+        promptEditBtn.type = 'button';
+        promptEditBtn.className = 'button button-secondary';
+        promptEditBtn.style.marginTop = '6px';
+        promptEditBtn.textContent = 'Prompt bearbeiten';
+        promptEditBtn.addEventListener('click', function () {
+            openPromptModal('Prompt bearbeiten', promptInput.value, function (newPrompt) {
+                promptInput.value = String(newPrompt || '');
+                promptSummary.textContent = summarizePrompt(promptInput.value);
+            });
+        });
+
+        promptCell.appendChild(promptInput);
+        promptCell.appendChild(promptSummary);
+        promptCell.appendChild(promptEditBtn);
+
+        var agentPromptCell = document.createElement('td');
+        agentPromptCell.style.padding = '4px 6px 4px 0';
+
+        var agentPromptInput = document.createElement('input');
+        agentPromptInput.type = 'hidden';
+        agentPromptInput.setAttribute('data-field', 'agentPrompt');
+        agentPromptInput.value = entry && entry.agentPrompt !== undefined && entry.agentPrompt !== null ? String(entry.agentPrompt) : '';
+
+        var agentPromptSummary = document.createElement('div');
+        agentPromptSummary.style.fontSize = '12px';
+        agentPromptSummary.style.maxWidth = '260px';
+        agentPromptSummary.style.whiteSpace = 'normal';
+        agentPromptSummary.style.wordBreak = 'break-word';
+        agentPromptSummary.textContent = summarizePrompt(agentPromptInput.value);
+
+        var agentPromptEditBtn = document.createElement('button');
+        agentPromptEditBtn.type = 'button';
+        agentPromptEditBtn.className = 'button button-secondary';
+        agentPromptEditBtn.style.marginTop = '6px';
+        agentPromptEditBtn.textContent = 'Agent Prompt bearbeiten';
+        agentPromptEditBtn.addEventListener('click', function () {
+            openPromptModal('Agent Prompt bearbeiten', agentPromptInput.value, function (newPrompt) {
+                agentPromptInput.value = String(newPrompt || '');
+                agentPromptSummary.textContent = summarizePrompt(agentPromptInput.value);
+            });
+        });
+
+        agentPromptCell.appendChild(agentPromptInput);
+        agentPromptCell.appendChild(agentPromptSummary);
+        agentPromptCell.appendChild(agentPromptEditBtn);
+
         CONFIGURATION_FIELDS.forEach(function (field) {
             var cell = document.createElement('td');
             cell.style.padding = '4px 6px 4px 0';
 
-            var input;
-            if (field.type === 'textarea') {
-                input = document.createElement('textarea');
-                input.rows = 2;
-            } else {
-                input = document.createElement('input');
-                input.type = field.type || 'text';
-                if (field.min !== undefined) {
-                    input.min = String(field.min);
-                }
+            var input = document.createElement('input');
+            input.type = field.type || 'text';
+            if (field.min !== undefined) {
+                input.min = String(field.min);
             }
 
             input.style.width = '100%';
@@ -355,6 +497,8 @@
             cell.appendChild(input);
             row.appendChild(cell);
         });
+        row.insertBefore(promptCell, row.children[2] || null);
+        row.insertBefore(agentPromptCell, row.children[3] || null);
 
         var prereqCell = document.createElement('td');
         prereqCell.style.padding = '4px 6px 4px 0';
@@ -368,16 +512,27 @@
         provCell.appendChild(createAttributeSelect(provValues, 'attrProv'));
         row.appendChild(provCell);
 
-        var promptIdCell = document.createElement('td');
-        promptIdCell.style.padding = '4px 6px 4px 0';
-        var promptIdInput = document.createElement('input');
-        promptIdInput.type = 'text';
-        promptIdInput.placeholder = 'pmpt_...';
-        promptIdInput.style.width = '100%';
-        promptIdInput.setAttribute('data-field', 'promptId');
-        promptIdInput.value = entry && entry.promptId !== undefined && entry.promptId !== null ? String(entry.promptId) : '';
-        promptIdCell.appendChild(promptIdInput);
-        row.appendChild(promptIdCell);
+        var vectorStoreCell = document.createElement('td');
+        vectorStoreCell.style.padding = '4px 6px 4px 0';
+        var vectorStoreInput = document.createElement('input');
+        vectorStoreInput.type = 'text';
+        vectorStoreInput.placeholder = 'vs_...';
+        vectorStoreInput.style.width = '100%';
+        vectorStoreInput.setAttribute('data-field', 'vectorStoreId');
+        vectorStoreInput.value = entry && entry.vectorStoreId !== undefined && entry.vectorStoreId !== null ? String(entry.vectorStoreId) : '';
+        vectorStoreCell.appendChild(vectorStoreInput);
+        row.appendChild(vectorStoreCell);
+
+        var modelCell = document.createElement('td');
+        modelCell.style.padding = '4px 6px 4px 0';
+        var modelInput = document.createElement('input');
+        modelInput.type = 'text';
+        modelInput.placeholder = 'gpt-4.1-mini';
+        modelInput.style.width = '100%';
+        modelInput.setAttribute('data-field', 'model');
+        modelInput.value = entry && entry.model !== undefined && entry.model !== null ? String(entry.model) : '';
+        modelCell.appendChild(modelInput);
+        row.appendChild(modelCell);
 
         var iconCell = document.createElement('td');
         iconCell.style.padding = '4px 6px 4px 0';
@@ -458,6 +613,18 @@
             var idValue = parseInt(row.getAttribute('data-config-id') || '0', 10);
             entry.id = isNaN(idValue) ? 0 : Math.max(0, idValue);
 
+            var promptInput = row.querySelector('[data-field="prompt"]');
+            entry.prompt = promptInput ? promptInput.value.trim() : '';
+            if (entry.prompt) {
+                hasValue = true;
+            }
+
+            var agentPromptInput = row.querySelector('[data-field="agentPrompt"]');
+            entry.agentPrompt = agentPromptInput ? agentPromptInput.value.trim() : '';
+            if (entry.agentPrompt) {
+                hasValue = true;
+            }
+
             CONFIGURATION_FIELDS.forEach(function (field) {
                 var input = row.querySelector('[data-field="' + field.key + '"]');
                 var value = input ? input.value.trim() : '';
@@ -475,9 +642,15 @@
                 }
             });
 
-            var promptIdInput = row.querySelector('[data-field="promptId"]');
-            entry.promptId = promptIdInput ? promptIdInput.value.trim() : '';
-            if (entry.promptId) {
+            var vectorStoreInput = row.querySelector('[data-field="vectorStoreId"]');
+            entry.vectorStoreId = vectorStoreInput ? vectorStoreInput.value.trim() : '';
+            if (entry.vectorStoreId) {
+                hasValue = true;
+            }
+
+            var modelInput = row.querySelector('[data-field="model"]');
+            entry.model = modelInput ? modelInput.value.trim() : '';
+            if (entry.model) {
                 hasValue = true;
             }
 
@@ -552,6 +725,130 @@
         });
     }
 
+    function renderConfigurationLogUsers(users) {
+        if (!configurationLogUserFilterEl) {
+            return;
+        }
+
+        var selectedValue = String(configurationLogUserFilterEl.value || '');
+        configurationLogUserFilterEl.innerHTML = '';
+
+        var allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'Alle';
+        configurationLogUserFilterEl.appendChild(allOption);
+
+        (users || []).forEach(function (user) {
+            var userId = parseInt((user && user.user_id) || 0, 10);
+            if (isNaN(userId) || userId <= 0) {
+                return;
+            }
+
+            var option = document.createElement('option');
+            option.value = String(userId);
+            var userName = String((user && user.user_name) || '').trim();
+            option.textContent = userName ? userName + ' (#' + userId + ')' : 'User #' + userId;
+            configurationLogUserFilterEl.appendChild(option);
+        });
+
+        if (selectedValue && configurationLogUserFilterEl.querySelector('option[value="' + selectedValue + '"]')) {
+            configurationLogUserFilterEl.value = selectedValue;
+        } else {
+            configurationLogUserFilterEl.value = '';
+        }
+    }
+
+    function renderConfigurationLogEntries(entries) {
+        if (!configurationLogRowsEl) {
+            return;
+        }
+
+        configurationLogRowsEl.innerHTML = '';
+        if (!entries || !entries.length) {
+            var emptyRow = document.createElement('tr');
+            var emptyCell = document.createElement('td');
+            emptyCell.colSpan = 5;
+            emptyCell.textContent = 'Keine Eintraege gefunden.';
+            emptyRow.appendChild(emptyCell);
+            configurationLogRowsEl.appendChild(emptyRow);
+            return;
+        }
+
+        entries.forEach(function (entry) {
+            var row = document.createElement('tr');
+
+            var changedAtCell = document.createElement('td');
+            changedAtCell.textContent = String((entry && entry.changed_at) || '');
+            row.appendChild(changedAtCell);
+
+            var userCell = document.createElement('td');
+            var userId = parseInt((entry && entry.user_id) || 0, 10);
+            var userName = String((entry && entry.user_name) || '').trim();
+            userCell.textContent = userId > 0 ? (userName ? userName + ' (#' + userId + ')' : '#' + userId) : '-';
+            row.appendChild(userCell);
+
+            var configIdCell = document.createElement('td');
+            configIdCell.textContent = String((entry && entry.config_entry_id) || '');
+            row.appendChild(configIdCell);
+
+            var fieldCell = document.createElement('td');
+            fieldCell.textContent = String((entry && entry.field_name) || '');
+            row.appendChild(fieldCell);
+
+            var oldValueCell = document.createElement('td');
+            oldValueCell.style.whiteSpace = 'pre-wrap';
+            oldValueCell.style.wordBreak = 'break-word';
+            oldValueCell.textContent = String((entry && entry.old_value) || '');
+            row.appendChild(oldValueCell);
+
+            configurationLogRowsEl.appendChild(row);
+        });
+    }
+
+    function loadConfigurationLog(showStatus) {
+        if (!configurationLogRowsEl) {
+            return Promise.resolve();
+        }
+
+        var params = [];
+        var userFilter = configurationLogUserFilterEl ? String(configurationLogUserFilterEl.value || '').trim() : '';
+        var fieldFilter = configurationLogFieldFilterEl ? String(configurationLogFieldFilterEl.value || '').trim() : '';
+        var dateFrom = configurationLogDateFromFilterEl ? String(configurationLogDateFromFilterEl.value || '').trim() : '';
+        var dateTo = configurationLogDateToFilterEl ? String(configurationLogDateToFilterEl.value || '').trim() : '';
+
+        if (userFilter) {
+            params.push('user_id=' + encodeURIComponent(userFilter));
+        }
+        if (fieldFilter) {
+            params.push('field_name=' + encodeURIComponent(fieldFilter));
+        }
+        if (dateFrom) {
+            params.push('date_from=' + encodeURIComponent(dateFrom));
+        }
+        if (dateTo) {
+            params.push('date_to=' + encodeURIComponent(dateTo));
+        }
+        params.push('limit=200');
+
+        if (showStatus) {
+            setStatus('Konfigurationsprotokoll wird geladen...', false);
+        }
+
+        return request('GET', '/settings/configuration-log?' + params.join('&'))
+            .then(function (payload) {
+                renderConfigurationLogUsers(payload && payload.users ? payload.users : []);
+                renderConfigurationLogEntries(payload && payload.entries ? payload.entries : []);
+                if (showStatus) {
+                    setStatus('Konfigurationsprotokoll geladen.', false);
+                }
+            })
+            .catch(function (error) {
+                if (showStatus) {
+                    setStatus(error.message, true);
+                }
+            });
+    }
+
     function fillForm(data) {
         renderConfigurationRows(data.configuration_entries || []);
         renderRoomAttributeRows(data.room_attributes || []);
@@ -587,6 +884,7 @@
         request('GET', '/settings')
             .then(function (data) {
                 fillForm(data);
+                loadConfigurationLog(false);
                 setStatus('Einstellungen geladen.', false);
             })
             .catch(function (error) {
@@ -621,6 +919,7 @@
             .then(function (data) {
                 apiKeyInput.value = '';
                 fillForm(data);
+                loadConfigurationLog(false);
                 setStatus('Einstellungen gespeichert.', false);
             })
             .catch(function (error) {
@@ -655,6 +954,12 @@
         assistantIconRemoveBtn.addEventListener('click', function () {
             assistantIconIdInput.value = '0';
             renderIconPreview(assistantIconPreview, '');
+        });
+    }
+
+    if (configurationLogLoadBtn) {
+        configurationLogLoadBtn.addEventListener('click', function () {
+            loadConfigurationLog(true);
         });
     }
 

@@ -4,7 +4,7 @@ namespace WpCustomGpt\Database;
 
 class MigrationRunner
 {
-    private const SCHEMA_VERSION = '6';
+    private const SCHEMA_VERSION = '8';
     private const REQUIRED_TABLE_SUFFIXES = array(
         'wpcgpt_rooms',
         'wpcgpt_chats',
@@ -16,6 +16,7 @@ class MigrationRunner
         'wpcgpt_volume_user_roles',
         'wpcgpt_volume_usage',
         'wpcgpt_volume_log',
+        'wpcgpt_configuration_log',
     );
 
     public static function maybeMigrate(): void
@@ -102,6 +103,7 @@ class MigrationRunner
         $volumeUserRolesTable = $wpdb->prefix . 'wpcgpt_volume_user_roles';
         $volumeUsageTable = $wpdb->prefix . 'wpcgpt_volume_usage';
         $volumeLogTable = $wpdb->prefix . 'wpcgpt_volume_log';
+        $configurationLogTable = $wpdb->prefix . 'wpcgpt_configuration_log';
 
         $sqlRooms = "CREATE TABLE {$roomsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -123,7 +125,10 @@ class MigrationRunner
             title VARCHAR(191) NOT NULL,
             config_label VARCHAR(191) NULL,
             config_prompt LONGTEXT NULL,
+            config_agent_prompt LONGTEXT NULL,
             config_prompt_id VARCHAR(191) NULL,
+            config_vector_store_id VARCHAR(191) NULL,
+            config_model VARCHAR(191) NULL,
             config_icon_url VARCHAR(500) NULL,
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,
@@ -237,6 +242,19 @@ class MigrationRunner
             KEY idx_created_at (created_at)
         ) {$charsetCollate};";
 
+        $sqlConfigurationLog = "CREATE TABLE {$configurationLogTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            config_entry_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            field_name VARCHAR(64) NOT NULL,
+            old_value LONGTEXT NULL,
+            changed_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            KEY idx_user_id (user_id),
+            KEY idx_config_entry_id (config_entry_id),
+            KEY idx_changed_at (changed_at)
+        ) {$charsetCollate};";
+
         dbDelta($sqlRooms);
         dbDelta($sqlChats);
         dbDelta($sqlMessages);
@@ -247,6 +265,7 @@ class MigrationRunner
         dbDelta($sqlVolumeUserRoles);
         dbDelta($sqlVolumeUsage);
         dbDelta($sqlVolumeLog);
+        dbDelta($sqlConfigurationLog);
 
         update_option('wpcgpt_schema_version', self::SCHEMA_VERSION, false);
     }

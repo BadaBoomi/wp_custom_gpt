@@ -29,7 +29,7 @@ class ChatRepository
         }
 
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, config_icon_url, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_agent_prompt, config_prompt_id, config_vector_store_id, config_model, config_icon_url, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE user_id = %d AND room_id = %d
              ORDER BY created_at DESC",
@@ -48,7 +48,9 @@ class ChatRepository
         string $title,
         string $configLabel = '',
         string $configPrompt = '',
-        string $configPromptId = '',
+        string $configAgentPrompt = '',
+        string $configVectorStoreId = '',
+        string $configModel = '',
         string $configIconUrl = ''
     ): ?array
     {
@@ -67,12 +69,15 @@ class ChatRepository
                 'title' => sanitize_text_field($title),
                 'config_label' => sanitize_text_field($configLabel),
                 'config_prompt' => $configPrompt,
-                'config_prompt_id' => sanitize_text_field($configPromptId),
+                'config_agent_prompt' => $configAgentPrompt,
+                'config_prompt_id' => '',
+                'config_vector_store_id' => sanitize_text_field($configVectorStoreId),
+                'config_model' => sanitize_text_field($configModel),
                 'config_icon_url' => esc_url_raw($configIconUrl),
                 'created_at' => $now,
                 'updated_at' => $now,
             ),
-            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
+            array('%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s')
         );
 
         $chatId = (int) $this->wpdb->insert_id;
@@ -293,7 +298,7 @@ class ChatRepository
     private function findChatForUser(int $chatId, int $userId): ?array
     {
         $sql = $this->wpdb->prepare(
-            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_prompt_id, config_icon_url, created_at, updated_at
+            "SELECT id, room_id, title, conversation_id, config_label, config_prompt, config_agent_prompt, config_prompt_id, config_vector_store_id, config_model, config_icon_url, created_at, updated_at
              FROM {$this->chatsTable}
              WHERE id = %d AND user_id = %d
              LIMIT 1",
@@ -315,7 +320,10 @@ class ChatRepository
             'conversation_id' => (string) ($row['conversation_id'] ?? ''),
             'config_label' => (string) ($row['config_label'] ?? ''),
             'config_prompt' => (string) ($row['config_prompt'] ?? ''),
+            'config_agent_prompt' => (string) ($row['config_agent_prompt'] ?? ''),
             'config_prompt_id' => (string) ($row['config_prompt_id'] ?? ''),
+            'config_vector_store_id' => (string) ($row['config_vector_store_id'] ?? ''),
+            'config_model' => (string) ($row['config_model'] ?? ''),
             'config_icon_url' => esc_url_raw((string) ($row['config_icon_url'] ?? '')),
             'created_at' => (string) $row['created_at'],
             'updated_at' => (string) $row['updated_at'],
