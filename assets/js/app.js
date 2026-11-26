@@ -14,6 +14,25 @@
     var nameInput = document.getElementById('wpcgpt-room-name');
     var chatTitleInput = document.getElementById('wpcgpt-chat-title');
     var messageInput = document.getElementById('wpcgpt-message-input');
+
+    if (createBtn && nameInput) {
+        nameInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                createBtn.click();
+            }
+        });
+    }
+
+    if (createChatBtn && chatTitleInput) {
+        chatTitleInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                createChatBtn.click();
+            }
+        });
+    }
+
     var selectedRoomId = null;
     var selectedChatId = null;
 

@@ -12,6 +12,15 @@
     var chatTitleInput = document.getElementById('wpcgpt-chat-title');
     var configurationSelect = document.getElementById('wpcgpt-chat-configuration');
 
+    if (createChatBtn && chatTitleInput) {
+        chatTitleInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                createChatBtn.click();
+            }
+        });
+    }
+
     var roomId = parseInt(root.getAttribute('data-room-id') || '0', 10);
     var chatPage = root.getAttribute('data-chat-page') || '';
     var roomsPage = root.getAttribute('data-rooms-page') || '';

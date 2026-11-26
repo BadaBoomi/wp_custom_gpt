@@ -10,6 +10,15 @@
     var nameInput = document.getElementById('wpcgpt-room-name');
     var chatsPage = root.getAttribute('data-chats-page') || '';
 
+    if (createBtn && nameInput) {
+        nameInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                createBtn.click();
+            }
+        });
+    }
+
     function setStatus(message, isError) {
         statusEl.textContent = message;
         statusEl.style.color = isError ? 'var(--wpcgpt-color-error)' : 'var(--wpcgpt-color-success)';
