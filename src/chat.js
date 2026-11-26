@@ -448,6 +448,15 @@ import DOMPurify from 'dompurify';
         window.location.href = chatsPage + separator + 'room_id=' + encodeURIComponent(String(roomId));
     }
 
+    if (messageInput) {
+        messageInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessageBtn.click();
+            }
+        });
+    }
+
     sendMessageBtn.addEventListener('click', function () {
         var message = (messageInput.value || '').trim();
         if (!message) {
